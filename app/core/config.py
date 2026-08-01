@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     r2_secret_access_key: str
     r2_bucket_name: str
     r2_endpoint: str
+    admin: int
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

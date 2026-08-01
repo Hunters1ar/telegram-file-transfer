@@ -61,6 +61,9 @@ class FileRepository:
     async def delete(self, share_id: str):
         await self.collection.delete_one({"share_id": share_id})
 
+    async def clear_all(self):
+        await self.collection.delete_many({})
+
     async def get_user_stats(self, owner_id: int) -> dict:
         pipeline = [
             {"$match": {"owner_id": owner_id}},

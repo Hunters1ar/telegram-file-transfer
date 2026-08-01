@@ -2,7 +2,7 @@ import io
 import uuid
 from datetime import datetime, timezone
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from app.core.config import settings
 from app.services.share_service import share_service
 from app.repositories.r2.upload import upload_file_to_r2
@@ -23,6 +23,20 @@ async def command_start_handler(message: types.Message) -> None:
         parse_mode="HTML",
         reply_markup=get_main_reply_keyboard()
     )
+
+@dp.message(Command("clearwhole"))
+async def command_clearwhole_handler(message: types.Message) -> None:
+    if message.from_user.id != settings.admin:
+        return
+    
+    msg = await message.answer("🧹 Cleaning up system (MongoDB and Cloudflare R2)...")
+    try:
+        from app.repositories.r2.r2_service import empty_r2_bucket
+        await empty_r2_bucket()
+        await file_repository.clear_all()
+        await msg.edit_text("✅ System is completely clean! All files and data have been wiped.")
+    except Exception as e:
+        await msg.edit_text(f"❌ Failed to clean system: {e}")
 
 @dp.message(F.document | F.video | F.audio | F.photo)
 async def handle_file_upload(message: types.Message):
