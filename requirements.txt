@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+aiogram
+motor
+pydantic
+pydantic-settings
+boto3
+python-dotenv
