@@ -14,6 +14,9 @@ async def connect_to_mongo():
     db_instance.client = AsyncIOMotorClient(settings.mongodb_uri)
     db_instance.db = db_instance.client.get_database("telegram_storage")
     print("Connected to MongoDB")
+    
+    from app.repositories.mongodb.file_repository import file_repository
+    await file_repository.create_indexes()
 
 async def close_mongo_connection():
     if db_instance.client:

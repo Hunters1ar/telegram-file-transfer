@@ -4,10 +4,10 @@ from datetime import datetime, timezone
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from app.core.config import settings
-from app.services.share.share_service import share_service
-from app.services.storage.upload import upload_file_to_r2
-from app.models.file_model import FileMetadata
-from app.repositories.file_repository import file_repository
+from app.services.share_service import share_service
+from app.repositories.r2.upload import upload_file_to_r2
+from app.domain.entities.file import FileMetadata
+from app.repositories.mongodb.file_repository import file_repository
 
 bot = Bot(token=settings.bot_token)
 dp = Dispatcher()
@@ -63,46 +63,28 @@ async def handle_file_upload(message: types.Message):
     await bot.download_file(file_info.file_path, destination=file_stream)
     file_stream.seek(0)
     
-    await msg.edit_text("Uploading to Cloudflare R2...")
-    
-    # Generate structured keys
-    owner_id = message.from_user.id
-    r2_key = share_service.generate_r2_key(owner_id, original_filename)
-    
-    # Upload to R2
-    await upload_file_to_r2(file_stream, r2_key, mime_type)
-    
-    await msg.edit_text("Saving metadata...")
-    
-    # Create DB entry
-    share_id = await share_service.get_unique_share_id()
-    
-    # Extract extension properly
-    ext = ""
-    if "." in original_filename:
-        ext = "." + original_filename.split(".")[-1]
-    
-    file_metadata = FileMetadata(
-        _id=str(uuid.uuid4()),
-        share_id=share_id,
-        owner_id=owner_id,
+    from app.services.upload_service import upload_service
+    from app.clients.telegram.keyboards import get_file_card_keyboard
+    from app.clients.telegram.messages import format_file_card
+
+    file_meta = await upload_service.process_upload(
+        file_stream=file_stream,
+        owner_id=message.from_user.id,
         chat_id=message.chat.id,
-        telegram_file_id=file_obj.file_id,
-        telegram_unique_id=file_obj.file_unique_id,
         original_filename=original_filename,
         mime_type=mime_type,
-        extension=ext,
-        file_type=file_type,
         size=size,
-        r2_key=r2_key,
-        bucket=settings.r2_bucket_name,
-        uploaded_at=datetime.now(timezone.utc)
+        telegram_file_id=file_obj.file_id,
+        telegram_unique_id=file_obj.file_unique_id,
+        category=file_type
     )
     
-    await file_repository.save(file_metadata)
-    
-    # Reply with the Share ID
-    await msg.edit_text(f"✅ File uploaded successfully!\n\n<b>Share ID</b>: <code>{share_id}</code>", parse_mode="HTML")
+    # Respond with File Card
+    await msg.edit_text(
+        text=format_file_card(file_meta), 
+        parse_mode="HTML",
+        reply_markup=get_file_card_keyboard(file_meta)
+    )
 
 def get_inline_result(file_meta):
     f_type = file_meta.file_type or "document"

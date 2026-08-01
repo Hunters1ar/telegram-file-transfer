@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import RedirectResponse
 from datetime import datetime, timezone
-from app.repositories.file_repository import file_repository
-from app.services.storage.presigned import generate_presigned_url
+from app.repositories.mongodb.file_repository import file_repository
+from app.repositories.r2.presigned import generate_presigned_url
 
 router = APIRouter()
 

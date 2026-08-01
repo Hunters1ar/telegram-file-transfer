@@ -2,7 +2,7 @@ import random
 import string
 import uuid
 from datetime import datetime, timezone
-from app.repositories.file_repository import file_repository
+from app.repositories.mongodb.file_repository import file_repository
 
 class ShareService:
     @staticmethod

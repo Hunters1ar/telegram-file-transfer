@@ -1,4 +1,4 @@
-from app.services.storage.r2_service import s3_client
+from app.repositories.r2.r2_service import s3_client
 from app.core.config import settings
 
 def generate_presigned_url(r2_key: str, expiration: int = 3600) -> str:

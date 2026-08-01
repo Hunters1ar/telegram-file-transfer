@@ -1,5 +1,5 @@
 from typing import BinaryIO
-from app.services.storage.r2_service import s3_client
+from app.repositories.r2.r2_service import s3_client
 from app.core.config import settings
 import asyncio
 from fastapi.concurrency import run_in_threadpool
