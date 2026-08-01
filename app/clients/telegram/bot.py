@@ -19,9 +19,11 @@ async def command_start_handler(message: types.Message) -> None:
         "👋 <b>Welcome to Hunterstar UX 2.0!</b>\n\n"
         "Here is how to use the new features:\n\n"
         "📤 <b>Send me any file</b> (photo, video, document) and I will upload it to Cloudflare R2. You will immediately see the new <b>4-Row Matrix Buttons</b> (Download, Share, Make Public, Delete) attached to the file!\n\n"
-        "🖥 <b>Use the Menu Below</b> to open the Dashboard, view your Storage Stats, or manage your files!",
+        "🖥 <b>Use the Menu Below</b> or the inline button to open the Dashboard, view your Storage Stats, or manage your files!",
         parse_mode="HTML",
-        reply_markup=get_main_reply_keyboard()
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="🖥 Open Dashboard", web_app=types.WebAppInfo(url="https://www.hunterstar.online/"))]
+        ])
     )
 
 @dp.message(Command("clearwhole"))
@@ -109,7 +111,7 @@ async def handle_file_upload(message: types.Message):
     )
 
 def get_inline_result(file_meta):
-    f_type = file_meta.file_type or "document"
+    f_type = getattr(file_meta, "category", "document")
     title = file_meta.original_filename
     
     if f_type == "photo":
