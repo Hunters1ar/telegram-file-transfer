@@ -42,8 +42,8 @@ app = FastAPI(title="Telegram Storage API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://www.hunterstar.online", "https://project-lfoyq.vercel.app"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
