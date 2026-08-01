@@ -1,5 +1,5 @@
 /* ============================================
-   HUNTERSTAR — MINIMAL + DASHBOARD SCRIPT
+   HUNTERSTAR UX 2.0 SCRIPT
    ============================================ */
 
 const tg = window.Telegram?.WebApp;
@@ -16,88 +16,158 @@ if (tg) {
   }
 }
 
-// FOR TESTING OUTSIDE TELEGRAM (Replace with your actual Telegram ID during local testing if needed)
+// FOR TESTING OUTSIDE TELEGRAM
 if (!isMiniApp) {
-  // Mock initData for testing
-  // initData = "user=%7B%22id%22%3A123456%7D&hash=mock";
+  // Mock initData for local testing (Uses dummy ID 123456)
+  initData = "user=%7B%22id%22%3A123456%7D&hash=mock";
 }
 
 const API_BASE = "https://api.hunterstar.online/api";
 
-/* ===== 1. CLOCK ===== */
-function updateClock() {
-  const now = new Date();
-  const h = String(now.getUTCHours()).padStart(2, '0');
-  const m = String(now.getUTCMinutes()).padStart(2, '0');
-  const s = String(now.getUTCSeconds()).padStart(2, '0');
-  const el = document.getElementById('status-time');
-  if (el) el.textContent = `${h}:${m}:${s} UTC`;
-}
-updateClock();
-setInterval(updateClock, 1000);
-
-/* ===== 2. STATE & MOCK DATA ===== */
+/* ===== STATE ===== */
 let library = [];
 let history = [];
+let uploadQueue = [];
 
-/* ===== 3. RENDER FUNCTIONS ===== */
+/* ===== DOM ELEMENTS ===== */
+const fileListEl = document.getElementById('main-file-list');
+const emptyStateEl = document.getElementById('empty-state');
+const activityListEl = document.getElementById('activity-list');
+const widgetFilesCount = document.getElementById('widget-files-count');
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+const browseBtn = document.getElementById('browse-btn');
+const dzDefault = document.getElementById('dz-default');
+const dzQueue = document.getElementById('dz-queue');
+const dzSuccess = document.getElementById('dz-success');
+
+const cmdPalette = document.getElementById('cmd-palette');
+const cmdInput = document.getElementById('cmd-input');
+
+const detailsPanel = document.getElementById('details-panel');
+const dpClose = document.getElementById('dp-close');
+
+/* ===== HELPERS ===== */
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + units[i];
+}
+
+function getFileIcon(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  if (['pdf'].includes(ext)) return '📄';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return '🖼';
+  if (['mp4', 'mov', 'avi', 'mkv'].includes(ext)) return '🎬';
+  if (['mp3', 'wav', 'ogg'].includes(ext)) return '🎵';
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '📦';
+  if (['js', 'py', 'html', 'css', 'cpp', 'c', 'java'].includes(ext)) return '💻';
+  return '📄';
+}
+
+function timeAgo(dateString) {
+  const date = new Date(dateString);
+  const seconds = Math.floor((new Date() - date) / 1000);
+  let interval = seconds / 31536000;
+  if (interval > 1) return Math.floor(interval) + " years ago";
+  interval = seconds / 2592000;
+  if (interval > 1) return Math.floor(interval) + " months ago";
+  interval = seconds / 86400;
+  if (interval > 1) return Math.floor(interval) + " days ago";
+  interval = seconds / 3600;
+  if (interval > 1) return Math.floor(interval) + " hours ago";
+  interval = seconds / 60;
+  if (interval > 1) return Math.floor(interval) + " mins ago";
+  return "Just now";
+}
+
+/* ===== RENDERERS ===== */
 function renderLibrary() {
-  const list = document.getElementById('library-list');
-  list.innerHTML = '';
-  document.getElementById('lib-count').textContent = `${library.length} FILES`;
+  widgetFilesCount.textContent = library.length;
+  
+  if (library.length === 0) {
+    emptyStateEl.style.display = 'block';
+    const rows = fileListEl.querySelectorAll('.file-row');
+    rows.forEach(r => r.remove());
+    return;
+  }
+  
+  emptyStateEl.style.display = 'none';
+  fileListEl.innerHTML = '';
   
   library.forEach(file => {
-    const el = document.createElement('div');
-    el.className = 'lib-item';
-    el.innerHTML = `
-      <div class="lib-info">
-        <span class="lib-name">${file.name}</span>
-        <span class="lib-meta">${file.size}</span>
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    const icon = getFileIcon(file.name);
+    
+    row.innerHTML = `
+      <div class="f-info">
+        <span class="f-icon">${icon}</span>
+        <span class="f-name">${file.name}</span>
       </div>
-      <button class="lib-id" data-id="${file.id}">${file.id}</button>
+      <div class="f-meta">
+        <span>${file.size}</span>
+        <span>${file.category === 'public' ? '🌍 Public' : '🔒 Private'}</span>
+      </div>
+      <div class="f-actions" onclick="event.stopPropagation()">
+        <button class="f-btn" onclick="window.open('${API_BASE}/download/${file.id}', '_blank')">⬇</button>
+        <button class="f-btn" onclick="copyLink('${file.id}')">🔗</button>
+        <button class="f-btn">⋮</button>
+      </div>
     `;
-    list.appendChild(el);
-  });
-  
-  // Copy ID functionality
-  list.querySelectorAll('.lib-id').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      navigator.clipboard?.writeText(id);
-      btn.classList.add('copied');
-      btn.textContent = 'COPIED';
-      setTimeout(() => {
-        btn.classList.remove('copied');
-        btn.textContent = id;
-      }, 1500);
-    });
+    
+    row.addEventListener('click', () => openDetails(file));
+    fileListEl.appendChild(row);
   });
 }
 
-function renderHistory() {
-  const list = document.getElementById('logs-list');
-  list.innerHTML = '';
-  
+function renderActivity() {
+  activityListEl.innerHTML = '';
   history.forEach(log => {
     const el = document.createElement('div');
-    el.className = 'log-item';
+    el.className = 'act-item';
     el.innerHTML = `
-      <span class="log-time">${log.time}</span>
-      <span class="log-type ${log.type}">${log.type.toUpperCase()}</span>
-      <span class="log-msg">${log.msg}</span>
+      <span class="act-icon">${log.icon}</span>
+      <div>
+        <span>${log.msg}</span>
+        <span class="act-time">${log.time}</span>
+      </div>
     `;
-    list.appendChild(el);
+    activityListEl.appendChild(el);
   });
 }
 
-function addLog(type, msg) {
-  const now = new Date();
-  const time = `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}:${String(now.getUTCSeconds()).padStart(2, '0')}`;
-  history.unshift({ time, type, msg });
-  if (history.length > 20) history.pop(); // Keep logs concise
-  renderHistory();
+function addLog(icon, msg) {
+  history.unshift({ icon, msg, time: 'Just now' });
+  if (history.length > 5) history.pop();
+  renderActivity();
 }
 
+function copyLink(id) {
+  navigator.clipboard?.writeText(`https://t.me/hunterstar_bot?start=${id}`);
+  if (isMiniApp && tg) tg.HapticFeedback?.notification('success');
+}
+
+/* ===== DETAILS PANEL ===== */
+function openDetails(file) {
+  document.getElementById('dp-filename').textContent = file.name;
+  document.getElementById('dp-size').textContent = file.size;
+  document.getElementById('dp-hash').textContent = file.id;
+  document.getElementById('dp-downloads').textContent = '0';
+  document.getElementById('dp-visibility').textContent = file.category === 'public' ? 'Public' : 'Private';
+  document.getElementById('dp-created').textContent = timeAgo(file.uploaded_at || new Date());
+  
+  detailsPanel.classList.add('open');
+}
+
+dpClose.addEventListener('click', () => {
+  detailsPanel.classList.remove('open');
+});
+
+/* ===== API FETCH ===== */
 async function fetchLibrary() {
   if (!initData) return;
   try {
@@ -109,32 +179,23 @@ async function fetchLibrary() {
     library = files.map(f => ({
       name: f.name,
       size: formatBytes(f.size),
-      id: f.id
+      id: f.id,
+      category: f.category,
+      uploaded_at: f.uploaded_at
     }));
     renderLibrary();
-    addLog('system', 'Synced library from cloud');
+    addLog('🔄', 'Library synced');
   } catch (e) {
     console.error(e);
-    addLog('error', 'Failed to sync library');
+    addLog('❌', 'Sync failed');
   }
 }
 
-/* ===== 4. DROPZONE LOGIC ===== */
-const dropzone = document.getElementById('dropzone');
-const folderInput = document.getElementById('folder-input');
-const browseBtn = document.getElementById('browse-btn');
-const fileList = document.getElementById('file-list');
-const dzStatus = document.getElementById('dz-status');
-const statusText = document.getElementById('status-text');
-const statusPct = document.getElementById('status-pct');
-const statusBar = document.getElementById('status-bar');
+/* ===== DROPZONE & UPLOAD ===== */
+browseBtn.addEventListener('click', () => fileInput.click());
 
-let queuedFiles = [];
-
-browseBtn.addEventListener('click', () => folderInput.click());
-
-folderInput.addEventListener('change', e => {
-  handleFiles(Array.from(e.target.files).map(f => ({ file: f, path: f.webkitRelativePath || f.name })));
+fileInput.addEventListener('change', e => {
+  handleFiles(Array.from(e.target.files));
   e.target.value = '';
 });
 
@@ -148,101 +209,61 @@ folderInput.addEventListener('change', e => {
 ['dragleave', 'drop'].forEach(evt => {
   dropzone.addEventListener(evt, e => {
     e.preventDefault();
-    if (evt === 'dragleave' && e.target !== dropzone) return;
     dropzone.classList.remove('dragover');
   });
 });
 
-dropzone.addEventListener('drop', async e => {
-  const items = e.dataTransfer.items;
-  if (items && items.length > 0 && items[0].webkitGetAsEntry) {
-    const entries = [];
-    for (let i = 0; i < items.length; i++) {
-      const entry = items[i].webkitGetAsEntry();
-      if (entry) entries.push(entry);
-    }
-    if (entries.length > 0) {
-      const files = [];
-      for (const entry of entries) {
-        await traverseEntry(entry, '', files);
-      }
-      handleFiles(files);
-      return;
-    }
-  }
+dropzone.addEventListener('drop', e => {
   if (e.dataTransfer.files.length > 0) {
-    handleFiles(Array.from(e.dataTransfer.files).map(f => ({ file: f, path: f.name })));
+    handleFiles(Array.from(e.dataTransfer.files));
   }
 });
 
-function traverseEntry(entry, path, results) {
-  return new Promise(resolve => {
-    if (entry.isFile) {
-      entry.file(file => {
-        results.push({ file, path: path + file.name });
-        resolve();
-      }, () => resolve());
-    } else if (entry.isDirectory) {
-      const reader = entry.createReader();
-      const dirPath = path + entry.name + '/';
-      readAllEntries(reader, async (entries) => {
-        for (const e of entries) await traverseEntry(e, dirPath, results);
-        resolve();
-      });
-    } else { resolve(); }
-  });
-}
-
-function readAllEntries(reader, callback) {
-  const all = [];
-  function read() {
-    reader.readEntries(entries => {
-      if (entries.length === 0) callback(all);
-      else { all.push(...entries); read(); }
-    }, () => callback(all));
-  }
-  read();
-}
-
-function formatBytes(bytes) {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return (bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
-}
-
-function handleFiles(newFiles) {
+function handleFiles(files) {
   if (!initData) {
-    addLog('error', 'Authentication required via Telegram');
-    if (isMiniApp && tg) tg.showAlert('Please open this inside the Telegram App.');
+    alert("Please open within Telegram to upload.");
     return;
   }
   
-  queuedFiles = newFiles.map(({ file, path }) => ({
-    file, path, progress: 0, status: 'queued'
-  }));
-  renderFileList();
-  startUpload();
+  uploadQueue = files.map(file => ({ file, progress: 0, status: 'queued' }));
+  dzDefault.hidden = true;
+  dzSuccess.hidden = true;
+  dzQueue.hidden = false;
+  
+  renderQueue();
+  startUploads();
 }
 
-function renderFileList() {
-  fileList.innerHTML = '';
-  if (queuedFiles.length === 0) return;
-  
-  queuedFiles.forEach((item, idx) => {
+function renderQueue() {
+  dzQueue.innerHTML = '';
+  uploadQueue.forEach((item, idx) => {
     const el = document.createElement('div');
-    el.className = 'file-item';
-    el.id = `file-${idx}`;
+    el.className = 'queue-item';
+    el.id = `q-${idx}`;
     el.innerHTML = `
-      <span class="file-name">${item.path}</span>
-      <span class="file-status">Queued</span>
+      <div class="q-header">
+        <span>${item.file.name}</span>
+        <span class="q-pct">0%</span>
+      </div>
+      <div class="q-bar-track"><div class="q-bar-fill"></div></div>
+      <div class="q-meta">
+        <span>0 B / ${formatBytes(item.file.size)}</span>
+        <span>Uploading...</span>
+      </div>
     `;
-    fileList.appendChild(el);
+    dzQueue.appendChild(el);
   });
 }
 
-async function uploadFile(item, idx, onProgress) {
+function updateQueueItem(idx, loaded, total, percent) {
+  const el = document.getElementById(`q-${idx}`);
+  if (!el) return;
+  el.querySelector('.q-pct').textContent = `${Math.floor(percent)}%`;
+  el.querySelector('.q-bar-fill').style.width = `${percent}%`;
+  el.querySelector('.q-meta span:first-child').textContent = `${formatBytes(loaded)} / ${formatBytes(total)}`;
+}
+
+async function uploadFile(item, idx) {
   const formData = new FormData();
   formData.append('file', item.file);
 
@@ -254,7 +275,7 @@ async function uploadFile(item, idx, onProgress) {
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         const percent = (e.loaded / e.total) * 100;
-        onProgress(percent);
+        updateQueueItem(idx, e.loaded, e.total, percent);
       }
     };
 
@@ -270,67 +291,88 @@ async function uploadFile(item, idx, onProgress) {
   });
 }
 
-async function startUpload() {
+async function startUploads() {
   if (isMiniApp && tg) {
     tg.MainButton.setText('UPLOADING...');
     tg.MainButton.showProgress();
     tg.MainButton.show();
-    tg.enableClosingConfirmation();
   }
   
-  dzStatus.hidden = false;
-  let currentIdx = 0;
+  let lastResult = null;
   
-  async function uploadNext() {
-    if (currentIdx >= queuedFiles.length) {
-      statusText.textContent = `Uploaded ${queuedFiles.length} files`;
-      statusPct.textContent = '100%';
-      statusBar.style.width = '100%';
-      if (isMiniApp && tg) {
-        tg.MainButton.hideProgress();
-        tg.MainButton.setText('UPLOAD COMPLETE');
-        tg.HapticFeedback?.notification('success');
-      }
-      return;
-    }
-    
-    const item = queuedFiles[currentIdx];
-    item.status = 'uploading';
-    const fileEl = document.getElementById(`file-${currentIdx}`);
-    fileEl.querySelector('.file-status').textContent = '0%';
-    statusText.textContent = `Uploading ${item.file.name}...`;
-
+  for (let i = 0; i < uploadQueue.length; i++) {
+    const item = uploadQueue[i];
     try {
-      const res = await uploadFile(item, currentIdx, (percent) => {
-        item.progress = percent;
-        fileEl.querySelector('.file-status').textContent = `${Math.floor(percent)}%`;
-        const totalPct = Math.floor(((currentIdx + (percent / 100)) / queuedFiles.length) * 100);
-        statusPct.textContent = `${totalPct}%`;
-        statusBar.style.width = `${totalPct}%`;
-      });
-      
-      item.status = 'done';
-      fileEl.classList.add('done');
-      fileEl.querySelector('.file-status').textContent = 'Done';
+      const res = await uploadFile(item, i);
+      const el = document.getElementById(`q-${i}`);
+      if (el) el.querySelector('.q-meta span:last-child').textContent = 'Completed';
       
       const sizeStr = formatBytes(item.file.size);
-      library.unshift({ name: item.file.name, size: sizeStr, id: res.id });
-      renderLibrary();
-      addLog('upload', `${item.file.name} (${sizeStr}) -> ${res.id}`);
+      const newFile = { name: item.file.name, size: sizeStr, id: res.id, category: 'private', uploaded_at: new Date() };
+      library.unshift(newFile);
+      addLog('⬆', `Uploaded ${item.file.name}`);
+      lastResult = newFile;
       
       if (isMiniApp && tg) tg.HapticFeedback?.impactOccurred('light');
     } catch (e) {
-      item.status = 'failed';
-      fileEl.querySelector('.file-status').textContent = 'Error';
-      addLog('error', `Failed to upload ${item.file.name}`);
+      console.error(e);
+      const el = document.getElementById(`q-${i}`);
+      if (el) el.querySelector('.q-meta span:last-child').textContent = 'Error';
     }
-
-    currentIdx++;
-    uploadNext();
   }
-  uploadNext();
+  
+  renderLibrary();
+  
+  if (isMiniApp && tg) {
+    tg.MainButton.hideProgress();
+    tg.MainButton.hide();
+    tg.HapticFeedback?.notification('success');
+  }
+  
+  // Show Success Screen if at least one file succeeded
+  if (lastResult) {
+    dzQueue.hidden = true;
+    dzSuccess.hidden = false;
+    document.getElementById('success-filename').textContent = lastResult.name;
+    document.getElementById('success-id').textContent = `🆔 ${lastResult.id}`;
+    
+    // Bind buttons
+    document.getElementById('btn-copy-id').onclick = () => copyLink(lastResult.id); // Or copy ID
+    document.getElementById('btn-copy-link').onclick = () => copyLink(lastResult.id);
+  } else {
+    setTimeout(() => {
+      dzQueue.hidden = true;
+      dzDefault.hidden = false;
+    }, 2000);
+  }
 }
 
-/* ===== 5. INIT ===== */
-renderHistory();
-fetchLibrary();    
+/* ===== COMMAND PALETTE (CMD+K) ===== */
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    toggleCmdPalette();
+  }
+  if (e.key === 'Escape' && !cmdPalette.hidden) {
+    toggleCmdPalette();
+  }
+});
+
+function toggleCmdPalette() {
+  if (cmdPalette.hidden) {
+    cmdPalette.hidden = false;
+    cmdInput.focus();
+    cmdInput.value = '';
+  } else {
+    cmdPalette.hidden = true;
+  }
+}
+
+cmdPalette.addEventListener('click', e => {
+  if (e.target === cmdPalette) toggleCmdPalette(); // Click outside to close
+});
+
+/* ===== INIT ===== */
+renderLibrary();
+renderActivity();
+fetchLibrary();

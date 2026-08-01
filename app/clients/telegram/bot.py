@@ -165,5 +165,90 @@ async def inline_query_handler(inline_query: types.InlineQuery):
         )
         await inline_query.answer([error_result], cache_time=5)
 
+from app.clients.telegram.keyboards import FileAction, get_file_card_keyboard, get_delete_confirmation_keyboard, get_more_menu_keyboard
+from app.clients.telegram.messages import format_file_card
+
+@dp.callback_query(FileAction.filter(F.action == "public"))
+async def handle_make_public(callback: types.CallbackQuery, callback_data: FileAction):
+    file_meta = await file_repository.get_by_share_id(callback_data.share_id)
+    if not file_meta or file_meta.owner_id != callback.from_user.id:
+        return await callback.answer("File not found or unauthorized.", show_alert=True)
+    
+    file_meta.sharing.mode = "public"
+    await file_repository.update(file_meta)
+    await callback.message.edit_text(format_file_card(file_meta), parse_mode="HTML", reply_markup=get_file_card_keyboard(file_meta))
+    await callback.answer("File is now public 🌍")
+
+@dp.callback_query(FileAction.filter(F.action == "private"))
+async def handle_make_private(callback: types.CallbackQuery, callback_data: FileAction):
+    file_meta = await file_repository.get_by_share_id(callback_data.share_id)
+    if not file_meta or file_meta.owner_id != callback.from_user.id:
+        return await callback.answer("File not found or unauthorized.", show_alert=True)
+    
+    file_meta.sharing.mode = "private"
+    await file_repository.update(file_meta)
+    await callback.message.edit_text(format_file_card(file_meta), parse_mode="HTML", reply_markup=get_file_card_keyboard(file_meta))
+    await callback.answer("File is now private 🔒")
+
+@dp.callback_query(FileAction.filter(F.action == "favorite"))
+async def handle_favorite(callback: types.CallbackQuery, callback_data: FileAction):
+    file_meta = await file_repository.get_by_share_id(callback_data.share_id)
+    if not file_meta or file_meta.owner_id != callback.from_user.id:
+        return await callback.answer("File not found or unauthorized.", show_alert=True)
+    
+    file_meta.is_favorite = not file_meta.is_favorite
+    await file_repository.update(file_meta)
+    await callback.message.edit_reply_markup(reply_markup=get_file_card_keyboard(file_meta))
+    msg = "Added to favorites ⭐" if file_meta.is_favorite else "Removed from favorites"
+    await callback.answer(msg)
+
+@dp.callback_query(FileAction.filter(F.action == "more"))
+async def handle_more_menu(callback: types.CallbackQuery, callback_data: FileAction):
+    await callback.message.edit_reply_markup(reply_markup=get_more_menu_keyboard(callback_data.share_id))
+    await callback.answer()
+
+@dp.callback_query(FileAction.filter(F.action == "back_to_main"))
+async def handle_back_to_main(callback: types.CallbackQuery, callback_data: FileAction):
+    file_meta = await file_repository.get_by_share_id(callback_data.share_id)
+    if file_meta:
+        await callback.message.edit_reply_markup(reply_markup=get_file_card_keyboard(file_meta))
+    await callback.answer()
+
+@dp.callback_query(FileAction.filter(F.action == "delete"))
+async def handle_delete_prompt(callback: types.CallbackQuery, callback_data: FileAction):
+    file_meta = await file_repository.get_by_share_id(callback_data.share_id)
+    if not file_meta or file_meta.owner_id != callback.from_user.id:
+        return await callback.answer("File not found or unauthorized.", show_alert=True)
+        
+    await callback.message.edit_text(f"⚠ Delete file? <b>{file_meta.original_filename}</b>", parse_mode="HTML", reply_markup=get_delete_confirmation_keyboard(file_meta.share_id))
+    await callback.answer()
+
+@dp.callback_query(FileAction.filter(F.action == "cancel_delete"))
+async def handle_cancel_delete(callback: types.CallbackQuery, callback_data: FileAction):
+    file_meta = await file_repository.get_by_share_id(callback_data.share_id)
+    if not file_meta:
+        return await callback.answer("File not found.", show_alert=True)
+        
+    await callback.message.edit_text(format_file_card(file_meta), parse_mode="HTML", reply_markup=get_file_card_keyboard(file_meta))
+    await callback.answer()
+
+@dp.callback_query(FileAction.filter(F.action == "confirm_delete"))
+async def handle_confirm_delete(callback: types.CallbackQuery, callback_data: FileAction):
+    file_meta = await file_repository.get_by_share_id(callback_data.share_id)
+    if not file_meta or file_meta.owner_id != callback.from_user.id:
+        return await callback.answer("File not found or unauthorized.", show_alert=True)
+        
+    # Delete from MongoDB
+    await file_repository.delete(callback_data.share_id)
+    # Ideally delete from R2 as well, but omitting for brevity/safety unless implemented
+    
+    await callback.message.edit_text(f"🗑 Deleted <b>{file_meta.original_filename}</b>", parse_mode="HTML")
+    await callback.answer("File deleted")
+
+@dp.callback_query(FileAction.filter(F.action.in_({"rename", "move", "analytics"})))
+async def handle_coming_soon(callback: types.CallbackQuery):
+    await callback.answer("This feature is coming soon in UX 2.0 Phase 2!", show_alert=True)
+
+
 async def start_polling():
     await dp.start_polling(bot)

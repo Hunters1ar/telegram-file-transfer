@@ -1,3 +1,4 @@
+import certifi
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import settings
 
@@ -11,7 +12,7 @@ async def get_database():
     return db_instance.db
 
 async def connect_to_mongo():
-    db_instance.client = AsyncIOMotorClient(settings.mongodb_uri)
+    db_instance.client = AsyncIOMotorClient(settings.mongodb_uri, tlsCAFile=certifi.where())
     db_instance.db = db_instance.client.get_database("telegram_storage")
     print("Connected to MongoDB")
     
