@@ -168,6 +168,34 @@ dpClose.addEventListener('click', () => {
 });
 
 /* ===== API FETCH ===== */
+async function fetchStats() {
+  if (!initData) return;
+  try {
+    const res = await fetch(`${API_BASE}/stats`, {
+      headers: { "x-tg-data": initData }
+    });
+    if (!res.ok) return;
+    const stats = await res.json();
+    
+    document.getElementById('widget-files-count').textContent = stats.total_files;
+    document.getElementById('widget-storage').textContent = formatBytes(stats.total_size);
+    document.getElementById('widget-downloads').textContent = stats.total_downloads;
+    document.getElementById('widget-shared').textContent = stats.total_shared;
+    
+    // Sidebar storage (100GB limit)
+    const limit = 100 * 1024 * 1024 * 1024; // 100 GB
+    const percent = Math.min((stats.total_size / limit) * 100, 100);
+    const textEl = document.getElementById('sb-storage-text');
+    const fillEl = document.getElementById('sb-storage-fill');
+    
+    if (textEl) textEl.textContent = `${formatBytes(stats.total_size)} / 100 GB`;
+    if (fillEl) fillEl.style.width = `${percent}%`;
+    
+  } catch (e) {
+    console.error("Failed to fetch stats", e);
+  }
+}
+
 async function fetchLibrary() {
   if (!initData) return;
   try {
@@ -322,6 +350,7 @@ async function startUploads() {
   }
   
   renderLibrary();
+  fetchStats();
   
   if (isMiniApp && tg) {
     tg.MainButton.hideProgress();
@@ -376,3 +405,4 @@ cmdPalette.addEventListener('click', e => {
 renderLibrary();
 renderActivity();
 fetchLibrary();
+fetchStats();

@@ -54,4 +54,44 @@ class FileRepository:
             }
         )
 
+    async def update(self, file_metadata: FileMetadata):
+        file_dict = file_metadata.model_dump(by_alias=True)
+        await self.collection.replace_one({"share_id": file_metadata.share_id}, file_dict)
+
+    async def delete(self, share_id: str):
+        await self.collection.delete_one({"share_id": share_id})
+
+    async def get_user_stats(self, owner_id: int) -> dict:
+        pipeline = [
+            {"$match": {"owner_id": owner_id}},
+            {"$group": {
+                "_id": None,
+                "total_files": {"$sum": 1},
+                "total_size": {"$sum": "$size"},
+                "total_downloads": {"$sum": "$download_count"},
+                "total_shared": {
+                    "$sum": {"$cond": [{"$eq": ["$sharing.mode", "public"]}, 1, 0]}
+                }
+            }}
+        ]
+        
+        cursor = self.collection.aggregate(pipeline)
+        result = await cursor.to_list(length=1)
+        
+        if result:
+            stats = result[0]
+            return {
+                "total_files": stats.get("total_files", 0),
+                "total_size": stats.get("total_size", 0),
+                "total_downloads": stats.get("total_downloads", 0),
+                "total_shared": stats.get("total_shared", 0)
+            }
+            
+        return {
+            "total_files": 0,
+            "total_size": 0,
+            "total_downloads": 0,
+            "total_shared": 0
+        }
+
 file_repository = FileRepository()

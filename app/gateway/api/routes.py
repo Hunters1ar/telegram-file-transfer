@@ -54,6 +54,16 @@ async def get_files(x_tg_data: str = Header(None)):
         } for f in user_files
     ]
 
+@router.get("/stats")
+async def get_stats(x_tg_data: str = Header(None)):
+    user = verify_telegram_data(x_tg_data)
+    owner_id = user.get('id')
+    if not owner_id:
+        raise HTTPException(status_code=401, detail="Unauthorized: No user ID")
+        
+    stats = await file_repository.get_user_stats(owner_id)
+    return stats
+
 @router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
