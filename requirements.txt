@@ -7,3 +7,4 @@ pydantic-settings
 boto3
 python-dotenv
 certifi
+python-multipart

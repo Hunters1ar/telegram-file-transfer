@@ -14,7 +14,13 @@ dp = Dispatcher()
 
 @dp.message(CommandStart())
 async def command_start_handler(message: types.Message) -> None:
-    await message.answer("Hello! Send me any file, and I will upload it to Cloudflare R2 and give you a Share ID.")
+    await message.answer(
+        "👋 <b>Welcome to Hunterstar UX 2.0!</b>\n\n"
+        "Here is how to use the new features:\n\n"
+        "📤 <b>Send me any file</b> (photo, video, document) and I will upload it to Cloudflare R2. You will immediately see the new <b>4-Row Matrix Buttons</b> (Download, Share, Make Public, Delete) attached to the file!\n\n"
+        "🖥 <b>Open the Dashboard</b> by clicking the <b>'Open'</b> button in the bottom left of Telegram to see the luxury Command Palette (Ctrl+K), Live Storage Widgets, and your File Queue!",
+        parse_mode="HTML"
+    )
 
 @dp.message(F.document | F.video | F.audio | F.photo)
 async def handle_file_upload(message: types.Message):
