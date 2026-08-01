@@ -43,7 +43,7 @@ async def get_files(x_tg_data: str = Header(None)):
     if not owner_id:
         raise HTTPException(status_code=401, detail="Unauthorized: No user ID")
         
-    user_files = await file_repository.get_by_owner_id(owner_id, limit=50)
+    user_files = await file_repository.get_by_owner_id(int(owner_id), limit=50)
     return [
         {
             "id": f.share_id,
@@ -61,7 +61,7 @@ async def get_stats(x_tg_data: str = Header(None)):
     if not owner_id:
         raise HTTPException(status_code=401, detail="Unauthorized: No user ID")
         
-    stats = await file_repository.get_user_stats(owner_id)
+    stats = await file_repository.get_user_stats(int(owner_id))
     return stats
 
 @router.post("/upload")
