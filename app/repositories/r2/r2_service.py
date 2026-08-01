@@ -25,3 +25,8 @@ async def empty_r2_bucket():
                 for obj in page['Contents']:
                     s3_client.delete_object(Bucket=bucket, Key=obj['Key'])
     await run_in_threadpool(_empty)
+
+async def delete_file_from_r2(r2_key: str):
+    def _delete():
+        s3_client.delete_object(Bucket=settings.r2_bucket_name, Key=r2_key)
+    await run_in_threadpool(_delete)

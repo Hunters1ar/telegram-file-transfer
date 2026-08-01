@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Header
 from fastapi.responses import RedirectResponse
 from datetime import datetime, timezone
+from typing import Optional
+from pydantic import BaseModel
 import io
 import json
 import urllib.parse
@@ -115,7 +117,51 @@ async def download_file(share_id: str):
     await file_repository.increment_downloads(share_id, current_time)
     
     # Generate presigned URL
-    presigned_url = generate_presigned_url(file_meta.r2_key, expiration=3600)
+    presigned_url = generate_presigned_url(file_meta.r2_object_key, expiration=3600)
     
     # Redirect user to the presigned URL
     return RedirectResponse(url=presigned_url)
+
+class FileUpdateModel(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+
+@router.delete("/files/{share_id}")
+async def delete_file_endpoint(share_id: str, x_tg_data: str = Header(None)):
+    user = verify_telegram_data(x_tg_data)
+    owner_id = user.get('id')
+    if not owner_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    file_meta = await file_repository.get_by_share_id(share_id)
+    if not file_meta or file_meta.owner_id != int(owner_id):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    # Delete from R2
+    from app.repositories.r2.r2_service import delete_file_from_r2
+    await delete_file_from_r2(file_meta.r2_object_key)
+    
+    # Delete from MongoDB
+    await file_repository.delete(share_id)
+    
+    return {"status": "ok"}
+
+@router.patch("/files/{share_id}")
+async def update_file(share_id: str, update_data: FileUpdateModel, x_tg_data: str = Header(None)):
+    user = verify_telegram_data(x_tg_data)
+    owner_id = user.get('id')
+    if not owner_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    file_meta = await file_repository.get_by_share_id(share_id)
+    if not file_meta or file_meta.owner_id != int(owner_id):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    if update_data.name is not None:
+        file_meta.original_filename = update_data.name
+    if update_data.category == 'public':
+        file_meta.sharing.mode = 'public'
+        
+    await file_repository.update(file_meta)
+    
+    return {"status": "ok"}
