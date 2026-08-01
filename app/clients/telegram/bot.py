@@ -14,12 +14,14 @@ dp = Dispatcher()
 
 @dp.message(CommandStart())
 async def command_start_handler(message: types.Message) -> None:
+    from app.clients.telegram.keyboards import get_main_reply_keyboard
     await message.answer(
         "👋 <b>Welcome to Hunterstar UX 2.0!</b>\n\n"
         "Here is how to use the new features:\n\n"
         "📤 <b>Send me any file</b> (photo, video, document) and I will upload it to Cloudflare R2. You will immediately see the new <b>4-Row Matrix Buttons</b> (Download, Share, Make Public, Delete) attached to the file!\n\n"
-        "🖥 <b>Open the Dashboard</b> by clicking the <b>'Open'</b> button in the bottom left of Telegram to see the luxury Command Palette (Ctrl+K), Live Storage Widgets, and your File Queue!",
-        parse_mode="HTML"
+        "🖥 <b>Use the Menu Below</b> to open the Dashboard, view your Storage Stats, or manage your files!",
+        parse_mode="HTML",
+        reply_markup=get_main_reply_keyboard()
     )
 
 @dp.message(F.document | F.video | F.audio | F.photo)
@@ -123,6 +125,19 @@ def get_inline_result(file_meta):
             title=title,
             caption=title
         )
+
+@dp.message(F.text == "📁 My Files")
+async def handle_my_files(message: types.Message):
+    await message.answer("Click <b>'Open Dashboard'</b> below or search your files using inline mode: <code>@hunterstarfilebot </code>", parse_mode="HTML")
+
+@dp.message(F.text == "☁ Storage Stats")
+async def handle_storage_stats(message: types.Message):
+    stats = await file_repository.get_user_stats(message.from_user.id)
+    await message.answer(f"☁ <b>Storage Used:</b> {stats.get('total_size', 0) / (1024*1024):.2f} MB\n📁 <b>Total Files:</b> {stats.get('total_files', 0)}", parse_mode="HTML")
+
+@dp.message(F.text == "⚙ Settings" or F.text == "⭐ Premium")
+async def handle_coming_soon_menu(message: types.Message):
+    await message.answer("🚧 This feature is coming soon in Phase 2!")
 
 @dp.inline_query()
 async def inline_query_handler(inline_query: types.InlineQuery):

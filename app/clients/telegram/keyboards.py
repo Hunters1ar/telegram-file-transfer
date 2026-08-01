@@ -1,5 +1,6 @@
 from aiogram.filters.callback_data import CallbackData
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram import types
 from app.domain.entities.file import FileMetadata
 
 class FileAction(CallbackData, prefix="file"):
@@ -47,3 +48,25 @@ def get_more_menu_keyboard(share_id: str):
     builder.button(text="🔙 Back", callback_data=FileAction(action="back_to_main", share_id=share_id))
     builder.adjust(2, 1)
     return builder.as_markup()
+
+from aiogram.utils.keyboard import ReplyKeyboardBuilder
+
+def get_main_reply_keyboard():
+    builder = ReplyKeyboardBuilder()
+    
+    # ROW 1 - Big Web App Button
+    builder.button(
+        text="🖥 Open Dashboard", 
+        web_app=types.WebAppInfo(url="https://www.hunterstar.online/")
+    )
+    
+    # ROW 2
+    builder.button(text="📁 My Files")
+    builder.button(text="☁ Storage Stats")
+    
+    # ROW 3
+    builder.button(text="⚙ Settings")
+    builder.button(text="⭐ Premium")
+    
+    builder.adjust(1, 2, 2)
+    return builder.as_markup(resize_keyboard=True, persistent=True)
