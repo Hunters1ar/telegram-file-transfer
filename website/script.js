@@ -4,13 +4,25 @@
 
 const tg = window.Telegram?.WebApp;
 let isMiniApp = false;
+let initData = "";
 
 if (tg) {
   tg.ready();
   tg.expand();
   isMiniApp = tg.platform !== 'unknown' && tg.platform !== undefined;
-  if (isMiniApp) document.body.classList.add('tg-miniapp');
+  if (isMiniApp) {
+    document.body.classList.add('tg-miniapp');
+    initData = tg.initData;
+  }
 }
+
+// FOR TESTING OUTSIDE TELEGRAM (Replace with your actual Telegram ID during local testing if needed)
+if (!isMiniApp) {
+  // Mock initData for testing
+  // initData = "user=%7B%22id%22%3A123456%7D&hash=mock";
+}
+
+const API_BASE = "https://api.hunterstar.online/api";
 
 /* ===== 1. CLOCK ===== */
 function updateClock() {
@@ -25,17 +37,8 @@ updateClock();
 setInterval(updateClock, 1000);
 
 /* ===== 2. STATE & MOCK DATA ===== */
-let library = [
-  { name: 'quarterly_report.pdf', size: '4.2 MB', id: 'f9a2c7e1' },
-  { name: 'clients_2025.zip', size: '128 MB', id: 'b4834d2e' },
-  { name: 'media_assets.zip', size: '512 MB', id: '9f1ac702' }
-];
-
-let history = [
-  { time: '14:22:01', type: 'upload', msg: 'quarterly_report.pdf (4.2MB) -> f9a2c7e1' },
-  { time: '14:21:45', type: 'share', msg: 'b4834d2e shared to @user' },
-  { time: '14:20:12', type: 'system', msg: 'Node sync complete' }
-];
+let library = [];
+let history = [];
 
 /* ===== 3. RENDER FUNCTIONS ===== */
 function renderLibrary() {
@@ -93,6 +96,27 @@ function addLog(type, msg) {
   history.unshift({ time, type, msg });
   if (history.length > 20) history.pop(); // Keep logs concise
   renderHistory();
+}
+
+async function fetchLibrary() {
+  if (!initData) return;
+  try {
+    const res = await fetch(`${API_BASE}/files`, {
+      headers: { "x-tg-data": initData }
+    });
+    if (!res.ok) throw new Error("Failed to fetch files");
+    const files = await res.json();
+    library = files.map(f => ({
+      name: f.name,
+      size: formatBytes(f.size),
+      id: f.id
+    }));
+    renderLibrary();
+    addLog('system', 'Synced library from cloud');
+  } catch (e) {
+    console.error(e);
+    addLog('error', 'Failed to sync library');
+  }
 }
 
 /* ===== 4. DROPZONE LOGIC ===== */
@@ -188,11 +212,13 @@ function formatBytes(bytes) {
   return (bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
 }
 
-function generateHash() {
-  return Math.random().toString(16).substring(2, 10);
-}
-
 function handleFiles(newFiles) {
+  if (!initData) {
+    addLog('error', 'Authentication required via Telegram');
+    if (isMiniApp && tg) tg.showAlert('Please open this inside the Telegram App.');
+    return;
+  }
+  
   queuedFiles = newFiles.map(({ file, path }) => ({
     file, path, progress: 0, status: 'queued'
   }));
@@ -216,7 +242,35 @@ function renderFileList() {
   });
 }
 
-function startUpload() {
+async function uploadFile(item, idx, onProgress) {
+  const formData = new FormData();
+  formData.append('file', item.file);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_BASE}/upload`, true);
+    xhr.setRequestHeader("x-tg-data", initData);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percent = (e.loaded / e.total) * 100;
+        onProgress(percent);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText));
+      } else {
+        reject(new Error(xhr.responseText));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network Error"));
+    xhr.send(formData);
+  });
+}
+
+async function startUpload() {
   if (isMiniApp && tg) {
     tg.MainButton.setText('UPLOADING...');
     tg.MainButton.showProgress();
@@ -227,7 +281,7 @@ function startUpload() {
   dzStatus.hidden = false;
   let currentIdx = 0;
   
-  function uploadNext() {
+  async function uploadNext() {
     if (currentIdx >= queuedFiles.length) {
       statusText.textContent = `Uploaded ${queuedFiles.length} files`;
       statusPct.textContent = '100%';
@@ -244,44 +298,39 @@ function startUpload() {
     item.status = 'uploading';
     const fileEl = document.getElementById(`file-${currentIdx}`);
     fileEl.querySelector('.file-status').textContent = '0%';
-    
     statusText.textContent = `Uploading ${item.file.name}...`;
-    const duration = Math.min(2000, Math.max(500, item.file.size / 1024));
-    const start = performance.now();
-    
-    function tick(now) {
-      const t = Math.min((now - start) / duration, 1);
-      item.progress = t * 100;
-      const pct = Math.floor(t * 100);
+
+    try {
+      const res = await uploadFile(item, currentIdx, (percent) => {
+        item.progress = percent;
+        fileEl.querySelector('.file-status').textContent = `${Math.floor(percent)}%`;
+        const totalPct = Math.floor(((currentIdx + (percent / 100)) / queuedFiles.length) * 100);
+        statusPct.textContent = `${totalPct}%`;
+        statusBar.style.width = `${totalPct}%`;
+      });
       
-      fileEl.querySelector('.file-status').textContent = `${pct}%`;
-      statusPct.textContent = `${Math.floor(((currentIdx + t) / queuedFiles.length) * 100)}%`;
-      statusBar.style.width = `${((currentIdx + t) / queuedFiles.length) * 100}%`;
+      item.status = 'done';
+      fileEl.classList.add('done');
+      fileEl.querySelector('.file-status').textContent = 'Done';
       
-      if (t < 1) {
-        requestAnimationFrame(tick);
-      } else {
-        item.status = 'done';
-        fileEl.classList.add('done');
-        fileEl.querySelector('.file-status').textContent = 'Done';
-        
-        // Add to Library and Logs
-        const id = generateHash();
-        const sizeStr = formatBytes(item.file.size);
-        library.unshift({ name: item.file.name, size: sizeStr, id });
-        renderLibrary();
-        addLog('upload', `${item.file.name} (${sizeStr}) -> ${id}`);
-        
-        if (isMiniApp && tg) tg.HapticFeedback?.impactOccurred('light');
-        currentIdx++;
-        setTimeout(uploadNext, 100);
-      }
+      const sizeStr = formatBytes(item.file.size);
+      library.unshift({ name: item.file.name, size: sizeStr, id: res.id });
+      renderLibrary();
+      addLog('upload', `${item.file.name} (${sizeStr}) -> ${res.id}`);
+      
+      if (isMiniApp && tg) tg.HapticFeedback?.impactOccurred('light');
+    } catch (e) {
+      item.status = 'failed';
+      fileEl.querySelector('.file-status').textContent = 'Error';
+      addLog('error', `Failed to upload ${item.file.name}`);
     }
-    requestAnimationFrame(tick);
+
+    currentIdx++;
+    uploadNext();
   }
   uploadNext();
 }
 
 /* ===== 5. INIT ===== */
-renderLibrary();
-renderHistory();    
+renderHistory();
+fetchLibrary();    

@@ -42,7 +42,7 @@ class FileMetadata(BaseModel):
     size: int
     sha256: Optional[str] = None 
     telegram_file_id: Optional[str] = None 
-    telegram_file_unique_id: str
+    telegram_file_unique_id: Optional[str] = None
     
     # R2 Storage Metadata
     r2_bucket: str

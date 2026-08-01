@@ -8,6 +8,8 @@ from app.services.share_service import share_service
 from app.events.bus import event_bus, Events
 from app.core.config import settings
 
+from typing import Optional
+
 class UploadService:
     async def process_upload(
         self, 
@@ -17,17 +19,18 @@ class UploadService:
         original_filename: str, 
         mime_type: str, 
         size: int,
-        telegram_file_id: str,
-        telegram_unique_id: str,
-        category: str
+        category: str,
+        telegram_file_id: Optional[str] = None,
+        telegram_unique_id: Optional[str] = None
     ) -> FileMetadata:
         
         # 1. Deduplication Check (Instant Upload)
-        existing_doc = await file_repository.get_by_telegram_unique_id(telegram_unique_id)
-        if existing_doc and existing_doc.owner_id == owner_id:
-            # We already have this file for this owner! Instant upload.
-            print("Instant Upload triggered for file_unique_id:", telegram_unique_id)
-            return existing_doc
+        if telegram_unique_id:
+            existing_doc = await file_repository.get_by_telegram_unique_id(telegram_unique_id)
+            if existing_doc and existing_doc.owner_id == owner_id:
+                # We already have this file for this owner! Instant upload.
+                print("Instant Upload triggered for file_unique_id:", telegram_unique_id)
+                return existing_doc
             
         # 2. Upload to R2
         r2_key = share_service.generate_r2_key(owner_id, original_filename)

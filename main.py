@@ -22,8 +22,8 @@ async def lifespan(app: FastAPI):
         logging.info("Starting bot in polling mode...")
         bot_task = asyncio.create_task(start_polling())
     elif settings.bot_mode == "webhook":
-        logging.info("Webhook mode is configured, but not fully implemented in this example yet.")
-        # Setup webhook URL here in the future
+        logging.info("Starting bot in webhook mode...")
+        await bot.set_webhook(f"https://api.hunterstar.online/webhook")
         
     yield
     
@@ -35,10 +35,28 @@ async def lifespan(app: FastAPI):
         
     await close_mongo_connection()
 
+from fastapi.middleware.cors import CORSMiddleware
+from aiogram import types as tg_types
+
 app = FastAPI(title="Telegram Storage API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://www.hunterstar.online", "https://project-lfoyq.vercel.app"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(api_router, prefix="/api")
 
 @app.get("/")
 def read_root():
     return {"message": "Telegram Storage API is running."}
+
+@app.post("/webhook")
+async def telegram_webhook(update: dict):
+    telegram_update = tg_types.Update(**update)
+    from app.clients.telegram.bot import dp, bot
+    await dp.feed_update(bot=bot, update=telegram_update)
+    return {"status": "ok"}
