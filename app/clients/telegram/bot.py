@@ -32,7 +32,7 @@ async def command_start_handler(message: types.Message) -> None:
         "🖥 <b>Use the Menu Below</b> or the inline button to open the Dashboard, view your Storage Stats, or manage your files!",
         parse_mode="HTML",
         reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text="🖥 Open Dashboard", web_app=types.WebAppInfo(url="https://www.hunterstar.online/"))]
+            [types.InlineKeyboardButton(text="🖥 Open Dashboard", web_app=types.WebAppInfo(url="https://www.hunterstar.online/?v=2"))]
         ])
     )
     await message.answer("Menu updated 👇", reply_markup=get_main_reply_keyboard(is_admin))
