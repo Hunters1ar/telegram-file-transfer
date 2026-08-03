@@ -45,10 +45,39 @@ async def handle_admin_menu(message: types.Message):
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
+    builder.button(text="👥 View Users", callback_data="admin_users")
+    builder.button(text="⚙ Set File Limit", callback_data="admin_setlimit")
     builder.button(text="🧹 Clear Whole System", callback_data="admin_clearwhole")
     builder.adjust(1)
     
     await message.answer("<b>Admin Command Palette</b>", parse_mode="HTML", reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data == "admin_users")
+async def handle_admin_users_cb(callback: types.CallbackQuery):
+    if callback.from_user.id != settings.admin:
+        return
+    
+    from app.repositories.mongodb.user_repository import user_repository
+    users = await user_repository.get_all_users()
+    
+    text = f"👥 <b>Total Users: {len(users)}</b>\n\n"
+    for idx, u in enumerate(users[:100]):
+        name = f"{u.first_name or ''} {u.last_name or ''}".strip()
+        uname = f"@{u.username}" if u.username else "No Username"
+        text += f"{idx+1}. <b>{name}</b> ({uname}) - ID: <code>{u.telegram_id}</code>\n"
+        
+    if len(users) > 100:
+        text += f"\n... and {len(users) - 100} more."
+        
+    await callback.message.edit_text(text[:4000], parse_mode="HTML")
+    await callback.answer()
+
+@dp.callback_query(F.data == "admin_setlimit")
+async def handle_admin_setlimit_cb(callback: types.CallbackQuery):
+    if callback.from_user.id != settings.admin:
+        return
+    await callback.message.edit_text("To set a global file size limit, send the command:\n<code>/setlimit &lt;MB&gt;</code>\nExample: <code>/setlimit 50</code>", parse_mode="HTML")
+    await callback.answer()
 
 @dp.callback_query(F.data == "admin_clearwhole")
 async def handle_admin_clearwhole_cb(callback: types.CallbackQuery):
@@ -241,9 +270,7 @@ async def handle_storage_stats(message: types.Message):
     stats = await file_repository.get_user_stats(message.from_user.id)
     await message.answer(f"☁ <b>Storage Used:</b> {stats.get('total_size', 0) / (1024*1024):.2f} MB\n📁 <b>Total Files:</b> {stats.get('total_files', 0)}", parse_mode="HTML")
 
-@dp.message(F.text == "⚙ Settings" or F.text == "⭐ Premium")
-async def handle_coming_soon_menu(message: types.Message):
-    await message.answer("🚧 This feature is coming soon in Phase 2!")
+
 
 @dp.inline_query()
 async def inline_query_handler(inline_query: types.InlineQuery):
