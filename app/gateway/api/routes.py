@@ -9,7 +9,7 @@ import urllib.parse
 import hmac
 import hashlib
 from app.repositories.mongodb.file_repository import file_repository
-from app.repositories.r2.presigned import generate_presigned_url
+from app.repositories.r2.presigned import generate_presigned_url, generate_presigned_put_url
 from app.services.upload_service import upload_service
 from app.core.config import settings
 
@@ -64,6 +64,11 @@ async def get_stats(x_tg_data: str = Header(None)):
         raise HTTPException(status_code=401, detail="Unauthorized: No user ID")
         
     stats = await file_repository.get_user_stats(int(owner_id))
+    
+    from app.repositories.mongodb.settings_repository import settings_repository
+    limit_mb = await settings_repository.get_global_file_limit()
+    stats["limit_mb"] = limit_mb
+    
     return stats
 
 @router.post("/upload")
@@ -77,7 +82,16 @@ async def upload_file(
     if not owner_id:
         raise HTTPException(status_code=401, detail="Unauthorized: No user ID")
         
+    from app.repositories.mongodb.settings_repository import settings_repository
+    limit_mb = await settings_repository.get_global_file_limit()
+    
+    if hasattr(file, "size") and file.size is not None and file.size > limit_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {limit_mb}MB.")
+        
     content = await file.read()
+    if len(content) > limit_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {limit_mb}MB.")
+        
     file_stream = io.BytesIO(content)
     
     # Determine category
@@ -101,6 +115,76 @@ async def upload_file(
         "id": file_meta.share_id,
         "name": file_meta.original_filename,
         "size": file_meta.size
+    }
+
+class UploadRequestModel(BaseModel):
+    name: str
+    size: int
+    mime_type: str
+
+class UploadConfirmModel(BaseModel):
+    name: str
+    size: int
+    mime_type: str
+    r2_key: str
+
+@router.post("/upload/request")
+async def request_upload(data: UploadRequestModel, x_tg_data: str = Header(None)):
+    user = verify_telegram_data(x_tg_data)
+    owner_id = user.get('id')
+    if not owner_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    from app.services.share_service import share_service
+    r2_key = share_service.generate_r2_key(owner_id, data.name)
+    url = generate_presigned_put_url(r2_key, data.mime_type)
+    
+    return {"url": url, "r2_key": r2_key}
+
+@router.post("/upload/confirm")
+async def confirm_upload(data: UploadConfirmModel, x_tg_data: str = Header(None)):
+    user = verify_telegram_data(x_tg_data)
+    owner_id = user.get('id')
+    if not owner_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    if data.mime_type.startswith("image/"): category = "photo"
+    elif data.mime_type.startswith("video/"): category = "video"
+    elif data.mime_type.startswith("audio/"): category = "audio"
+    else: category = "document"
+    
+    from app.services.share_service import share_service
+    share_id = await share_service.get_unique_share_id()
+    ext = ""
+    if "." in data.name:
+        ext = "." + data.name.split(".")[-1]
+        
+    import uuid
+    from app.domain.entities.file import FileMetadata, FileStatus
+    file_metadata = FileMetadata(
+        _id=str(uuid.uuid4()),
+        share_id=share_id,
+        owner_id=owner_id,
+        chat_id=owner_id,
+        original_filename=data.name,
+        mime_type=data.mime_type,
+        extension=ext,
+        category=category,
+        size=data.size,
+        r2_bucket=settings.r2_bucket_name,
+        r2_object_key=data.r2_key,
+        status=FileStatus.ACTIVE,
+        uploaded_at=datetime.now(timezone.utc)
+    )
+    await file_repository.save(file_metadata)
+    
+    from app.events.bus import event_bus, Events
+    await event_bus.publish(Events.FILE_CREATED, file_metadata)
+    
+    return {
+        "id": file_metadata.share_id,
+        "name": file_metadata.original_filename,
+        "size": file_metadata.size
     }
 
 @router.get("/download/{share_id}")

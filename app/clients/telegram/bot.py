@@ -14,6 +14,15 @@ dp = Dispatcher()
 
 @dp.message(CommandStart())
 async def command_start_handler(message: types.Message) -> None:
+    from app.domain.entities.user import User
+    from app.repositories.mongodb.user_repository import user_repository
+    await user_repository.upsert_user(User(
+        telegram_id=message.from_user.id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name,
+        last_name=message.from_user.last_name
+    ))
+
     from app.clients.telegram.keyboards import get_main_reply_keyboard
     is_admin = (message.from_user.id == settings.admin)
     await message.answer(
@@ -54,6 +63,45 @@ async def handle_admin_clearwhole_cb(callback: types.CallbackQuery):
     except Exception as e:
         await callback.message.edit_text(f"❌ Failed to clean system: {e}")
 
+@dp.message(Command("users"))
+async def command_users_handler(message: types.Message):
+    if message.from_user.id != settings.admin:
+        return
+    
+    from app.repositories.mongodb.user_repository import user_repository
+    users = await user_repository.get_all_users()
+    
+    text = f"👥 <b>Total Users: {len(users)}</b>\n\n"
+    for idx, u in enumerate(users[:100]):
+        name = f"{u.first_name or ''} {u.last_name or ''}".strip()
+        uname = f"@{u.username}" if u.username else "No Username"
+        text += f"{idx+1}. <b>{name}</b> ({uname}) - ID: <code>{u.telegram_id}</code>\n"
+        
+    if len(users) > 100:
+        text += f"\n... and {len(users) - 100} more."
+        
+    for x in range(0, len(text), 4000):
+        await message.answer(text[x:x+4000], parse_mode="HTML")
+
+@dp.message(Command("setlimit"))
+async def command_setlimit_handler(message: types.Message):
+    if message.from_user.id != settings.admin:
+        return
+    
+    parts = message.text.split()
+    if len(parts) != 2 or not parts[1].isdigit():
+        return await message.answer("❌ Usage: /setlimit <MB>\nExample: /setlimit 20")
+        
+    limit_mb = int(parts[1])
+    if limit_mb > 20:
+        await message.answer("⚠ Warning: Telegram Bot API restricts downloads to 20MB unless you use a local bot API server. Setting limit anyway.")
+        
+    from app.repositories.mongodb.settings_repository import settings_repository
+    await settings_repository.set_global_file_limit(limit_mb)
+    
+    await message.answer(f"✅ Global file size limit set to <b>{limit_mb}MB</b>.", parse_mode="HTML")
+
+
 @dp.message(Command("clearwhole"))
 async def command_clearwhole_handler(message: types.Message) -> None:
     if message.from_user.id != settings.admin:
@@ -70,6 +118,15 @@ async def command_clearwhole_handler(message: types.Message) -> None:
 
 @dp.message(F.document | F.video | F.audio | F.photo)
 async def handle_file_upload(message: types.Message):
+    from app.domain.entities.user import User
+    from app.repositories.mongodb.user_repository import user_repository
+    await user_repository.upsert_user(User(
+        telegram_id=message.from_user.id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name,
+        last_name=message.from_user.last_name
+    ))
+
     # Determine file type and get file object
     file_type = "document"
     if message.document:
@@ -100,9 +157,11 @@ async def handle_file_upload(message: types.Message):
         
     size = getattr(file_obj, "file_size", 0)
     
-    # Telegram Bot API limit is 20MB for download without a local server.
-    if size > 20 * 1024 * 1024:
-        await msg.edit_text("❌ This file is too large! The standard Telegram Bot API limits downloads to 20MB. Please test with a smaller file (like a photo or small document) for now.")
+    from app.repositories.mongodb.settings_repository import settings_repository
+    limit_mb = await settings_repository.get_global_file_limit()
+    
+    if size > limit_mb * 1024 * 1024:
+        await msg.edit_text(f"❌ This file is too large! The current limit is {limit_mb}MB.")
         return
 
     try:
@@ -141,34 +200,37 @@ async def handle_file_upload(message: types.Message):
 def get_inline_result(file_meta):
     f_type = getattr(file_meta, "category", "document")
     title = file_meta.original_filename
+    size_mb = f"{file_meta.size / (1024*1024):.2f}"
     
-    if f_type == "photo":
-        return types.InlineQueryResultCachedPhoto(
-            id=file_meta.share_id,
-            photo_file_id=file_meta.telegram_file_id,
-            title=title,
-            caption=title
-        )
-    elif f_type == "video":
-        return types.InlineQueryResultCachedVideo(
-            id=file_meta.share_id,
-            video_file_id=file_meta.telegram_file_id,
-            title=title,
-            caption=title
-        )
-    elif f_type == "audio":
-        return types.InlineQueryResultCachedAudio(
-            id=file_meta.share_id,
-            audio_file_id=file_meta.telegram_file_id,
-            caption=title
-        )
-    else:
-        return types.InlineQueryResultCachedDocument(
-            id=file_meta.share_id,
-            document_file_id=file_meta.telegram_file_id,
-            title=title,
-            caption=title
-        )
+    # Handle the premium rich card view as requested
+    icon = "🎬" if f_type == "video" else "🖼" if f_type == "photo" else "🎵" if f_type == "audio" else "📄"
+    visibility = "🌍 Public" if getattr(file_meta.sharing, "mode", "private") == "public" else "🔒 Private"
+    owner_name = "Hunter" # Could fetch from user service, but hardcoding for now since it's the owner's cloud
+    
+    message_text = (
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{icon} <b>{title}</b>\n\n"
+        f"🆔 <code>{file_meta.share_id}</code>\n"
+        f"📦 {size_mb} MB\n"
+        f"👤 {visibility}\n"
+        f"☁ Hunterstar Cloud\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Download securely below."
+    )
+    
+    return types.InlineQueryResultArticle(
+        id=file_meta.share_id,
+        title=title,
+        description=f"Size: {size_mb} MB | 📁 {f_type.capitalize()}",
+        input_message_content=types.InputTextMessageContent(
+            message_text=message_text,
+            parse_mode="HTML"
+        ),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="⬇ Download", url=f"https://api.hunterstar.online/api/v1/download/{file_meta.share_id}")],
+            [types.InlineKeyboardButton(text="📋 Copy ID", switch_inline_query=file_meta.share_id), types.InlineKeyboardButton(text="🌍 Open Website", web_app=types.WebAppInfo(url=f"https://cloud.hunterstar.online/f/{file_meta.share_id}"))]
+        ])
+    )
 
 @dp.message(F.text == "📁 My Files")
 async def handle_my_files(message: types.Message):
@@ -310,9 +372,9 @@ async def handle_confirm_delete(callback: types.CallbackQuery, callback_data: Fi
     await callback.message.edit_text(f"🗑 Deleted <b>{file_meta.original_filename}</b>", parse_mode="HTML")
     await callback.answer("File deleted")
 
-@dp.callback_query(FileAction.filter(F.action.in_({"rename", "move", "analytics"})))
+@dp.callback_query(FileAction.filter(F.action.in_({"rename", "move", "analytics", "details", "copy_id", "copy_link", "expire", "password"})))
 async def handle_coming_soon(callback: types.CallbackQuery):
-    await callback.answer("This feature is coming soon in UX 2.0 Phase 2!", show_alert=True)
+    await callback.answer("This feature is coming soon in Hunterstar Cloud Phase 2!", show_alert=True)
 
 
 async def setup_bot_commands(bot_instance: Bot):
@@ -322,7 +384,9 @@ async def setup_bot_commands(bot_instance: Bot):
     admin_commands = [
         types.BotCommand(command="start", description="Start the bot and show menu"),
         types.BotCommand(command="admin", description="Open Admin Panel"),
-        types.BotCommand(command="clearwhole", description="Clear all data")
+        types.BotCommand(command="clearwhole", description="Clear all data"),
+        types.BotCommand(command="users", description="List all users"),
+        types.BotCommand(command="setlimit", description="Set file limit (MB)")
     ]
     
     await bot_instance.set_my_commands(user_commands, scope=types.BotCommandScopeDefault())

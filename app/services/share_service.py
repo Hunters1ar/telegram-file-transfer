@@ -24,7 +24,7 @@ class ShareService:
         if "." in original_filename:
             ext = "." + original_filename.split(".")[-1]
             
-        return f"users/{owner_id}/{year}/{month}/{unique_id}{ext}"
+        return f"storage/users/{owner_id}/files/{year}/{month}/{unique_id}{ext}"
 
     async def get_unique_share_id(self) -> str:
         """Ensure the generated share ID does not exist in the database."""

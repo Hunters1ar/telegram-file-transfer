@@ -1,0 +1,37 @@
+from typing import Optional
+from pymongo import IndexModel, ASCENDING
+from app.repositories.mongodb.mongo import db_instance
+from app.domain.entities.user import User
+
+class UserRepository:
+    @property
+    def collection(self):
+        return db_instance.db["users"]
+
+    async def create_indexes(self):
+        indexes = [
+            IndexModel([("telegram_id", ASCENDING)], unique=True),
+        ]
+        await self.collection.create_indexes(indexes)
+
+    async def upsert_user(self, user: User) -> User:
+        user_dict = user.model_dump()
+        await self.collection.update_one(
+            {"telegram_id": user.telegram_id},
+            {"$set": user_dict},
+            upsert=True
+        )
+        return user
+
+    async def get_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+        doc = await self.collection.find_one({"telegram_id": telegram_id})
+        if doc:
+            return User(**doc)
+        return None
+
+    async def get_all_users(self) -> list[User]:
+        cursor = self.collection.find().sort("created_at", -1)
+        docs = await cursor.to_list(length=None)
+        return [User(**doc) for doc in docs]
+
+user_repository = UserRepository()

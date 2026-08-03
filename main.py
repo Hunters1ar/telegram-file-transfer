@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.core.config import settings
 from app.repositories.mongodb.mongo import connect_to_mongo, close_mongo_connection
-from app.gateway.api.routes import router as api_router
+from app.gateway.api.v1.router import router as api_v1_router
 from app.clients.telegram.bot import start_polling, bot
 
 logging.basicConfig(level=logging.INFO)
@@ -50,7 +50,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router, prefix="/api")
+app.include_router(api_v1_router, prefix="/api/v1")
 
 @app.get("/")
 def read_root():

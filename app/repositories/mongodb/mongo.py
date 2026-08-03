@@ -18,6 +18,9 @@ async def connect_to_mongo():
     
     from app.repositories.mongodb.file_repository import file_repository
     await file_repository.create_indexes()
+    
+    from app.repositories.mongodb.user_repository import user_repository
+    await user_repository.create_indexes()
 
 async def close_mongo_connection():
     if db_instance.client:

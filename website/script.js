@@ -22,13 +22,14 @@ if (!isMiniApp) {
   initData = "user=%7B%22id%22%3A123456%7D&hash=mock";
 }
 
-const API_BASE = "https://api.hunterstar.online/api";
+const API_BASE = "https://api.hunterstar.online/api/v1";
 
 /* ===== STATE ===== */
 let library = [];
 let history = [];
 let uploadQueue = [];
 let activeFile = null; // file currently open in the details panel
+let globalLimitBytes = 20 * 1024 * 1024; // Default 20MB
 
 /* ===== DOM ELEMENTS ===== */
 const fileListEl = document.getElementById('main-file-list');
@@ -322,6 +323,10 @@ async function fetchStats() {
     document.getElementById('widget-downloads').textContent = stats.total_downloads;
     document.getElementById('widget-shared').textContent = stats.total_shared;
     
+    if (stats.limit_mb) {
+        globalLimitBytes = stats.limit_mb * 1024 * 1024;
+    }
+    
     // Sidebar storage (100GB limit)
     const limit = 100 * 1024 * 1024 * 1024; // 100 GB
     const percent = Math.min((stats.total_size / limit) * 100, 100);
@@ -394,7 +399,12 @@ function handleFiles(files) {
     return;
   }
   
-  uploadQueue = files.map(file => ({ file, progress: 0, status: 'queued' }));
+  // No size limit on the frontend for direct-to-R2 uploads
+  const validFiles = files;
+
+  if (validFiles.length === 0) return;
+  
+  uploadQueue = validFiles.map(file => ({ file, progress: 0, status: 'queued' }));
   dzDefault.hidden = true;
   dzSuccess.hidden = true;
   dzQueue.hidden = false;
@@ -424,147 +434,136 @@ function renderQueue() {
   });
 }
 
-function updateQueueItem(idx, loaded, total, percent) {
+function updateQueueItem(idx, loaded, total, percent, statusText) {
   const el = document.getElementById(`q-${idx}`);
   if (!el) return;
   el.querySelector('.q-pct').textContent = `${Math.floor(percent)}%`;
   el.querySelector('.q-bar-fill').style.width = `${percent}%`;
   el.querySelector('.q-meta span:first-child').textContent = `${formatBytes(loaded)} / ${formatBytes(total)}`;
+  if (statusText) el.querySelector('.q-meta span:last-child').textContent = statusText;
+}
+
+async function computeSHA256(file) {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 async function uploadFile(item, idx) {
-  const formData = new FormData();
-  formData.append('file', item.file);
+  // Step 0: Hash for Smart Upload Deduplication
+  let sha256 = null;
+  if (item.file.size < 100 * 1024 * 1024) { // only hash files < 100MB on frontend to prevent hanging
+    updateQueueItem(idx, 0, item.file.size, 0, "Hashing...");
+    sha256 = await computeSHA256(item.file);
+  }
 
-  return new Promise((resolve, reject) => {
+  // Step 1: Request Presigned URL
+  const reqRes = await fetch(`${API_BASE}/upload/request`, {
+    method: 'POST',
+    headers: { "x-tg-data": initData, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: item.file.name,
+      size: item.file.size,
+      mime_type: item.file.type || "application/octet-stream",
+      sha256: sha256
+    })
+  });
+  if (!reqRes.ok) throw new Error("Failed to request upload URL");
+  const { url, r2_key, instant_success, final_meta } = await reqRes.json();
+  
+  if (instant_success) {
+      toast('⚡ Instant Upload: File already exists in your cloud!');
+      return final_meta;
+  }
+
+  // Step 2: Upload directly to R2 using XMLHttpRequest (for progress)
+  await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${API_BASE}/upload`, true);
-    xhr.setRequestHeader("x-tg-data", initData);
-
+    xhr.open('PUT', url, true);
+    
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         const percent = (e.loaded / e.total) * 100;
-        updateQueueItem(idx, e.loaded, e.total, percent);
+        updateQueueItem(idx, e.loaded, e.total, percent, "Uploading...");
       }
     };
-
+    
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText));
-      } else {
-        reject(new Error(xhr.responseText));
-      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error("R2 Upload failed"));
     };
     xhr.onerror = () => reject(new Error("Network Error"));
-    xhr.send(formData);
+    xhr.send(item.file);
   });
+
+  // Step 3: Confirm Upload
+  const confRes = await fetch(`${API_BASE}/upload/confirm`, {
+    method: 'POST',
+    headers: { "x-tg-data": initData, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: item.file.name,
+      size: item.file.size,
+      mime_type: item.file.type || "application/octet-stream",
+      r2_key: r2_key
+    })
+  });
+  if (!confRes.ok) throw new Error("Failed to confirm upload");
+  return await confRes.json();
 }
 
-async function startUploads() {
-  if (isMiniApp && tg) {
-    tg.MainButton.setText('UPLOADING...');
-    tg.MainButton.showProgress();
-    tg.MainButton.show();
+/* ===== ROUTING ===== */
+function initRouter() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const shareId = urlParams.get('f');
+  
+  // Also check if they used path-based routing (/f/XYZ)
+  const pathParts = window.location.pathname.split('/');
+  let pathShareId = null;
+  if (pathParts[1] === 'f' && pathParts[2]) {
+      pathShareId = pathParts[2];
   }
   
-  let lastResult = null;
-  let anyFailed = false;
+  const targetId = shareId || pathShareId;
   
-  for (let i = 0; i < uploadQueue.length; i++) {
-    const item = uploadQueue[i];
+  if (targetId) {
+      // Hide dashboard, show preview
+      document.getElementById('main-dashboard-view').hidden = true;
+      document.querySelector('.sidebar').hidden = true;
+      document.querySelector('.topbar').hidden = true;
+      document.getElementById('file-preview-view').hidden = false;
+      loadPreview(targetId);
+  } else {
+      renderLibrary();
+      renderActivity();
+      fetchLibrary();
+      fetchStats();
+  }
+}
+
+async function loadPreview(shareId) {
     try {
-      const res = await uploadFile(item, i);
-      const el = document.getElementById(`q-${i}`);
-      if (el) el.querySelector('.q-meta span:last-child').textContent = 'Completed';
-      
-      const sizeStr = formatBytes(item.file.size);
-      const newFile = { name: item.file.name, size: sizeStr, id: res.id, category: 'private', uploaded_at: new Date() };
-      library.unshift(newFile);
-      addLog('⬆', `Uploaded ${item.file.name}`);
-      lastResult = newFile;
-      
-      if (isMiniApp && tg) tg.HapticFeedback?.impactOccurred('light');
+        const res = await fetch(`${API_BASE}/files/public/${shareId}`);
+        if (!res.ok) throw new Error();
+        
+        const file = await res.json();
+        
+        document.getElementById('pv-filename').textContent = file.name;
+        document.getElementById('pv-size').textContent = formatBytes(file.size);
+        document.getElementById('pv-owner').textContent = 'Hunter'; // Mock owner
+        document.getElementById('pv-date').textContent = new Date(file.uploaded_at).toLocaleDateString();
+        document.getElementById('pv-downloads').textContent = '0'; // Could fetch real stats
+        document.getElementById('pv-visibility').textContent = file.category === 'public' ? 'Public' : 'Private';
+        document.getElementById('pv-hash').textContent = file.id; // Mock SHA until real SHA is saved
+        document.getElementById('pv-icon').textContent = getFileIcon(file.name);
+        
+        document.getElementById('pv-btn-download').onclick = () => {
+            window.location.href = `${API_BASE}/download/${file.id}`;
+        };
     } catch (e) {
-      console.error(e);
-      anyFailed = true;
-      const el = document.getElementById(`q-${i}`);
-      if (el) el.querySelector('.q-meta span:last-child').textContent = 'Error';
+        toast('File not found or private', 'error');
+        document.getElementById('pv-filename').textContent = "File not found";
     }
-  }
-  
-  renderLibrary();
-  fetchStats();
-  
-  if (isMiniApp && tg) {
-    tg.MainButton.hideProgress();
-    tg.MainButton.hide();
-    tg.HapticFeedback?.notification(lastResult ? 'success' : 'error');
-  }
-
-  if (anyFailed) {
-    toast(lastResult ? 'Some files failed to upload.' : 'Upload failed. Please try again.', 'error');
-  }
-  
-  // Show Success Screen if at least one file succeeded
-  if (lastResult) {
-    dzQueue.hidden = true;
-    dzSuccess.hidden = false;
-    document.getElementById('success-filename').textContent = lastResult.name;
-    document.getElementById('success-id').textContent = `🆔 ${lastResult.id}`;
-    
-    // Bind buttons — Copy ID now actually copies the raw ID instead of
-    // duplicating the Copy Link behavior, and Make Public is now wired up
-    // (it previously had no handler at all).
-    document.getElementById('btn-copy-id').onclick = () => copyID(lastResult.id);
-    document.getElementById('btn-copy-link').onclick = () => copyLink(lastResult.id);
-    document.getElementById('btn-make-public').onclick = () => makePublic(lastResult);
-  } else {
-    setTimeout(() => {
-      dzQueue.hidden = true;
-      dzDefault.hidden = false;
-    }, 2000);
-  }
 }
 
-/* ===== COMMAND PALETTE (CMD+K) ===== */
-document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-    e.preventDefault();
-    toggleCmdPalette();
-  }
-  if (e.key === 'Escape' && !cmdPalette.hidden) {
-    toggleCmdPalette();
-  }
-});
-
-function toggleCmdPalette() {
-  if (cmdPalette.hidden) {
-    cmdPalette.hidden = false;
-    cmdInput.focus();
-    cmdInput.value = '';
-  } else {
-    cmdPalette.hidden = true;
-  }
-}
-
-cmdPalette.addEventListener('click', e => {
-  if (e.target === cmdPalette) toggleCmdPalette(); // Click outside to close
-});
-
-// The command items (Upload File / Create Folder / Settings) rendered but
-// did nothing when clicked — wiring them to real actions.
-document.querySelectorAll('.cmd-item').forEach(item => {
-  item.addEventListener('click', () => {
-    const action = item.dataset.action;
-    toggleCmdPalette();
-    if (action === 'upload') fileInput.click();
-    else if (action === 'folder') toast('Folders are coming soon.');
-    else if (action === 'settings') toast('Settings are coming soon.');
-  });
-});
-
-/* ===== INIT ===== */
-renderLibrary();
-renderActivity();
-fetchLibrary();
-fetchStats();
+initRouter();

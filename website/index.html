@@ -79,7 +79,7 @@
       </div>
     </header>
 
-    <div class="dashboard-scroll">
+    <div class="dashboard-scroll" id="main-dashboard-view">
       
       <!-- Widgets -->
       <section class="widgets">
@@ -155,6 +155,48 @@
         </div>
       </section>
       
+    </div>
+
+    <!-- File Preview View (Hidden by default) -->
+    <div class="preview-scroll" id="file-preview-view" hidden>
+      <div class="preview-card">
+        <div class="pc-header">
+          <h2>Hunterstar Cloud</h2>
+        </div>
+        <div class="pc-media" id="pv-media">
+          <!-- Placeholder for media/icon -->
+          <span class="pc-icon-large" id="pv-icon">📄</span>
+        </div>
+        <div class="pc-info">
+          <h3 id="pv-filename">Loading...</h3>
+          <p class="pc-size" id="pv-size">0 MB</p>
+          <div class="pc-meta-grid">
+            <div>
+              <span>Uploaded</span>
+              <strong id="pv-date">-</strong>
+            </div>
+            <div>
+              <span>Downloads</span>
+              <strong id="pv-downloads">-</strong>
+            </div>
+            <div>
+              <span>Owner</span>
+              <strong id="pv-owner">-</strong>
+            </div>
+            <div>
+              <span>Visibility</span>
+              <strong id="pv-visibility">-</strong>
+            </div>
+          </div>
+        </div>
+        <div class="pc-actions">
+          <button class="pc-btn-primary" id="pv-btn-download">⬇ Download</button>
+        </div>
+        <div class="pc-footer">
+          <span>SHA256</span>
+          <code id="pv-hash">...</code>
+        </div>
+      </div>
     </div>
   </main>
 
