@@ -15,6 +15,7 @@ dp = Dispatcher()
 @dp.message(CommandStart())
 async def command_start_handler(message: types.Message) -> None:
     from app.clients.telegram.keyboards import get_main_reply_keyboard
+    is_admin = (message.from_user.id == settings.admin)
     await message.answer(
         "👋 <b>Welcome to Hunterstar UX 2.0!</b>\n\n"
         "Here is how to use the new features:\n\n"
@@ -25,6 +26,33 @@ async def command_start_handler(message: types.Message) -> None:
             [types.InlineKeyboardButton(text="🖥 Open Dashboard", web_app=types.WebAppInfo(url="https://www.hunterstar.online/"))]
         ])
     )
+    await message.answer("Menu updated 👇", reply_markup=get_main_reply_keyboard(is_admin))
+
+@dp.message(Command("admin"))
+@dp.message(F.text == "🛡 Admin Menu")
+async def handle_admin_menu(message: types.Message):
+    if message.from_user.id != settings.admin:
+        return
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🧹 Clear Whole System", callback_data="admin_clearwhole")
+    builder.adjust(1)
+    
+    await message.answer("<b>Admin Command Palette</b>", parse_mode="HTML", reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data == "admin_clearwhole")
+async def handle_admin_clearwhole_cb(callback: types.CallbackQuery):
+    if callback.from_user.id != settings.admin:
+        return
+    await callback.message.edit_text("🧹 Cleaning up system (MongoDB and Cloudflare R2)...")
+    try:
+        from app.repositories.r2.r2_service import empty_r2_bucket
+        await empty_r2_bucket()
+        await file_repository.clear_all()
+        await callback.message.edit_text("✅ System is completely clean! All files and data have been wiped.")
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Failed to clean system: {e}")
 
 @dp.message(Command("clearwhole"))
 async def command_clearwhole_handler(message: types.Message) -> None:
@@ -287,5 +315,22 @@ async def handle_coming_soon(callback: types.CallbackQuery):
     await callback.answer("This feature is coming soon in UX 2.0 Phase 2!", show_alert=True)
 
 
+async def setup_bot_commands(bot_instance: Bot):
+    user_commands = [
+        types.BotCommand(command="start", description="Start the bot and show menu")
+    ]
+    admin_commands = [
+        types.BotCommand(command="start", description="Start the bot and show menu"),
+        types.BotCommand(command="admin", description="Open Admin Panel"),
+        types.BotCommand(command="clearwhole", description="Clear all data")
+    ]
+    
+    await bot_instance.set_my_commands(user_commands, scope=types.BotCommandScopeDefault())
+    try:
+        await bot_instance.set_my_commands(admin_commands, scope=types.BotCommandScopeChat(chat_id=settings.admin))
+    except Exception as e:
+        print(f"Could not set admin commands: {e}")
+
 async def start_polling():
+    await setup_bot_commands(bot)
     await dp.start_polling(bot)

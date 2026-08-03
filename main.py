@@ -24,6 +24,8 @@ async def lifespan(app: FastAPI):
     elif settings.bot_mode == "webhook":
         logging.info("Starting bot in webhook mode...")
         await bot.set_webhook(f"https://api.hunterstar.online/webhook")
+        from app.clients.telegram.bot import setup_bot_commands
+        await setup_bot_commands(bot)
         
     yield
     

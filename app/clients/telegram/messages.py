@@ -13,7 +13,7 @@ def format_file_card(file_meta: FileMetadata) -> str:
     emoji = get_file_emoji(file_meta.category)
     
     return (
-        f"{emoji} <b>{file_meta.original_filename}</b>\n\n"
+        f"{emoji} <b>File Details</b>\n\n"
         f"🆔 <code>{file_meta.share_id}</code>\n"
         f"📁 {file_meta.category.capitalize()}\n"
         f"📦 {size_mb:.2f} MB\n"

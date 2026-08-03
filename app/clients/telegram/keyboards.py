@@ -51,7 +51,7 @@ def get_more_menu_keyboard(share_id: str):
 
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
-def get_main_reply_keyboard():
+def get_main_reply_keyboard(is_admin: bool = False):
     builder = ReplyKeyboardBuilder()
     
     # ROW 1 - Big Web App Button
@@ -68,5 +68,10 @@ def get_main_reply_keyboard():
     builder.button(text="⚙ Settings")
     builder.button(text="⭐ Premium")
     
-    builder.adjust(1, 2, 2)
+    if is_admin:
+        builder.button(text="🛡 Admin Menu")
+        builder.adjust(1, 2, 2, 1)
+    else:
+        builder.adjust(1, 2, 2)
+        
     return builder.as_markup(resize_keyboard=True, persistent=True)
