@@ -41,6 +41,13 @@ const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
 const browseBtn = document.getElementById('browse-btn');
 const dzDefault = document.getElementById('dz-default');
+const mobileUploadBtn = document.querySelector('.upload-btn');
+if (mobileUploadBtn) {
+  mobileUploadBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    fileInput.click();
+  });
+}
 const dzQueue = document.getElementById('dz-queue');
 const dzSuccess = document.getElementById('dz-success');
 
