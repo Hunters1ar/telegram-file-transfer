@@ -257,7 +257,7 @@ def get_inline_result(file_meta):
         ),
         reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="⬇ Download", url=f"https://api.hunterstar.online/api/v1/download/{file_meta.share_id}")],
-            [types.InlineKeyboardButton(text="📋 Copy ID", switch_inline_query=file_meta.share_id), types.InlineKeyboardButton(text="🌍 Open Website", web_app=types.WebAppInfo(url=f"https://cloud.hunterstar.online/f/{file_meta.share_id}"))]
+            [types.InlineKeyboardButton(text="📋 Copy ID", switch_inline_query=file_meta.share_id), types.InlineKeyboardButton(text="🌍 Open Website", url=f"https://cloud.hunterstar.online/f/{file_meta.share_id}")]
         ])
     )
 
