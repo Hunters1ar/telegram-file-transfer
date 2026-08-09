@@ -21,13 +21,14 @@ async def get_files(user: dict = Depends(get_current_user)):
             "name": f.original_filename,
             "size": f.size,
             "category": f.category,
+            "sharing": f.sharing.mode,
             "uploaded_at": f.uploaded_at
         } for f in user_files
     ]
 
 class FileUpdateModel(BaseModel):
     name: Optional[str] = None
-    category: Optional[str] = None
+    sharing: Optional[str] = None  # 'public' or 'private'
 
 @router.patch("/{share_id}")
 async def update_file(share_id: str, update_data: FileUpdateModel, user: dict = Depends(get_current_user)):
@@ -37,8 +38,10 @@ async def update_file(share_id: str, update_data: FileUpdateModel, user: dict = 
         
     if update_data.name is not None:
         file_meta.original_filename = update_data.name
-    if update_data.category == 'public':
+    if update_data.sharing == 'public':
         file_meta.sharing.mode = 'public'
+    elif update_data.sharing == 'private':
+        file_meta.sharing.mode = 'private'
         
     await file_repository.update(file_meta)
     return {"status": "ok"}

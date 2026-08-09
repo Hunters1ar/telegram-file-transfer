@@ -279,10 +279,10 @@ async function makePublic(file) {
     const res = await fetch(`${API_BASE}/files/${encodeURIComponent(file.id)}`, {
       method: 'PATCH',
       headers: { "x-tg-data": initData, "Content-Type": "application/json" },
-      body: JSON.stringify({ category: 'public' })
+      body: JSON.stringify({ sharing: 'public' })
     });
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
-    file.category = 'public';
+    file.sharing = 'public';
     renderLibrary();
     toast('File is now public');
   } catch (e) {
@@ -291,15 +291,40 @@ async function makePublic(file) {
   }
 }
 
+async function makePrivate(file) {
+  try {
+    const res = await fetch(`${API_BASE}/files/${encodeURIComponent(file.id)}`, {
+      method: 'PATCH',
+      headers: { "x-tg-data": initData, "Content-Type": "application/json" },
+      body: JSON.stringify({ sharing: 'private' })
+    });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    file.sharing = 'private';
+    renderLibrary();
+    toast('File is now private');
+  } catch (e) {
+    console.error(e);
+    toast('Could not change visibility. Please try again.', 'error');
+  }
+}
+
 /* ===== DETAILS PANEL ===== */
+function refreshVisibilityButton() {
+  const btn = document.getElementById('dp-btn-visibility');
+  if (!btn || !activeFile) return;
+  const isPublic = activeFile.sharing === 'public';
+  btn.innerHTML = isPublic ? '<span class="dp-icon">🔒</span> Make Private' : '<span class="dp-icon">🌍</span> Make Public';
+}
+
 function openDetails(file) {
   activeFile = file;
   document.getElementById('dp-filename').textContent = file.name;
   document.getElementById('dp-size').textContent = file.size;
   document.getElementById('dp-hash').textContent = file.id;
   document.getElementById('dp-downloads').textContent = '0';
-  document.getElementById('dp-visibility').textContent = file.category === 'public' ? 'Public' : 'Private';
+  document.getElementById('dp-visibility').textContent = file.sharing === 'public' ? '🌍 Public' : '🔒 Private';
   document.getElementById('dp-created').textContent = timeAgo(file.uploaded_at || new Date());
+  refreshVisibilityButton();
   
   const ext = file.name.split('.').pop().toLowerCase();
   const previewEl = document.getElementById('dp-media-preview');
@@ -333,13 +358,27 @@ dpClose.addEventListener('click', () => {
   }
 });
 
-// The details-panel action buttons (Download / Share / Rename / Delete) had
-// no click handlers at all before — wiring them up here.
-const dpActionButtons = document.querySelectorAll('.dp-actions .dp-btn');
+// The details-panel action buttons
+const dpActionButtons = document.querySelectorAll('.dp-actions .dp-btn:not(#dp-btn-visibility)');
 if (dpActionButtons[0]) dpActionButtons[0].addEventListener('click', () => activeFile && downloadFile(activeFile));
 if (dpActionButtons[1]) dpActionButtons[1].addEventListener('click', () => activeFile && copyLink(activeFile.id));
 if (dpActionButtons[2]) dpActionButtons[2].addEventListener('click', () => activeFile && renameFile(activeFile));
 if (dpActionButtons[3]) dpActionButtons[3].addEventListener('click', () => activeFile && deleteFile(activeFile));
+
+// Visibility toggle button
+const dpVisibilityBtn = document.getElementById('dp-btn-visibility');
+if (dpVisibilityBtn) {
+  dpVisibilityBtn.addEventListener('click', async () => {
+    if (!activeFile) return;
+    if (activeFile.sharing === 'public') {
+      await makePrivate(activeFile);
+    } else {
+      await makePublic(activeFile);
+    }
+    document.getElementById('dp-visibility').textContent = activeFile.sharing === 'public' ? '🌍 Public' : '🔒 Private';
+    refreshVisibilityButton();
+  });
+}
 
 /* ===== API FETCH ===== */
 async function fetchStats() {
@@ -387,6 +426,7 @@ async function fetchLibrary() {
       size: formatBytes(f.size),
       id: f.id,
       category: f.category,
+      sharing: f.sharing || 'private',
       uploaded_at: f.uploaded_at
     }));
     renderLibrary();

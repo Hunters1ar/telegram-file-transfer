@@ -315,7 +315,22 @@ def get_inline_result(file_meta):
 
 @dp.message(F.text == "📁 My Files")
 async def handle_my_files(message: types.Message):
-    await message.answer("Click <b>'Open Dashboard'</b> below or search your files using inline mode: <code>@hunterstarfilebot </code>", parse_mode="HTML")
+    files = await file_repository.get_by_owner_id(message.from_user.id, limit=50)
+    if not files:
+        await message.answer("📁 You have no files yet.\n\nSend me any file to get started!")
+        return
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    for f in files:
+        icon = "🎬" if f.category == "video" else "🖼" if f.category == "photo" else "🎵" if f.category == "audio" else "📄"
+        size_str = f"{f.size / (1024*1024):.1f} MB" if f.size >= 1024*1024 else f"{f.size // 1024} KB"
+        builder.button(
+            text=f"{icon} {f.original_filename[:28]} · {size_str}",
+            callback_data=FileAction(action="back_to_main", share_id=f.share_id)
+        )
+    builder.adjust(1)
+    await message.answer(f"📁 <b>Your Files</b> ({len(files)} total):", parse_mode="HTML", reply_markup=builder.as_markup())
 
 @dp.message(F.text == "☁ Storage Stats")
 async def handle_storage_stats(message: types.Message):
