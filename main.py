@@ -73,12 +73,22 @@ async def telegram_webhook(update: dict):
 # Serve the website frontend at /app/
 WEBSITE_DIR = os.path.join(os.path.dirname(__file__), "website")
 
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0"
+}
+
 @app.get("/app/{path:path}")
 async def serve_webapp(path: str = ""):
     if not path or path == "index.html":
-        return FileResponse(os.path.join(WEBSITE_DIR, "index.html"), media_type="text/html")
+        return FileResponse(os.path.join(WEBSITE_DIR, "index.html"), media_type="text/html", headers=NO_CACHE_HEADERS)
     file_path = os.path.join(WEBSITE_DIR, path)
     if os.path.isfile(file_path):
+        # Always serve JS, CSS, and service worker fresh — never cached
+        ext = os.path.splitext(path)[1].lower()
+        if ext in (".js", ".css"):
+            return FileResponse(file_path, headers=NO_CACHE_HEADERS)
         return FileResponse(file_path)
     # SPA fallback
-    return FileResponse(os.path.join(WEBSITE_DIR, "index.html"), media_type="text/html")
+    return FileResponse(os.path.join(WEBSITE_DIR, "index.html"), media_type="text/html", headers=NO_CACHE_HEADERS)

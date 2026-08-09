@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hunterstar-ux2-cache-v4';
+const CACHE_NAME = 'hunterstar-ux2-cache-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -28,7 +28,11 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
+  // Force all open tabs to reload with the new service worker immediately
   self.clients.claim();
+  self.clients.matchAll({ type: 'window' }).then(clients => {
+    clients.forEach(client => client.navigate(client.url));
+  });
 });
 
 self.addEventListener('fetch', (event) => {
