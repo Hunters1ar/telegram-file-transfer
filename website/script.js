@@ -151,7 +151,7 @@ function renderLibrary() {
       </div>
       <div class="f-meta">
         <span>${file.size}</span>
-        <span>${file.category === 'public' ? '🌍 Public' : '🔒 Private'}</span>
+        <span>${file.sharing === 'public' ? '🌍 Public' : '🔒 Private'}</span>
       </div>
       <div class="f-actions" onclick="event.stopPropagation()">
         <button class="f-btn" data-action="download">⬇</button>
