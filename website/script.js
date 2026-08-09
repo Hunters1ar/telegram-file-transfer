@@ -345,7 +345,7 @@ if (dpActionButtons[3]) dpActionButtons[3].addEventListener('click', () => activ
 async function fetchStats() {
   if (!initData) return;
   try {
-    const res = await fetch(`${API_BASE}/stats`, {
+    const res = await fetch(`${API_BASE}/stats/`, {
       headers: { "x-tg-data": initData }
     });
     if (!res.ok) return;
@@ -377,7 +377,7 @@ async function fetchStats() {
 async function fetchLibrary() {
   if (!initData) return;
   try {
-    const res = await fetch(`${API_BASE}/files`, {
+    const res = await fetch(`${API_BASE}/files/`, {
       headers: { "x-tg-data": initData }
     });
     if (!res.ok) throw new Error("Failed to fetch files");
@@ -516,7 +516,7 @@ async function uploadFile(item, idx) {
   }
 
   // Step 1: Request Presigned URL
-  const reqRes = await fetch(`${API_BASE}/upload/request`, {
+  const reqRes = await fetch(`${API_BASE}/upload/request/`, {
     method: 'POST',
     headers: { "x-tg-data": initData, "Content-Type": "application/json" },
     signal: item.abortController.signal,
@@ -557,7 +557,7 @@ async function uploadFile(item, idx) {
   });
 
   // Step 3: Confirm Upload
-  const confRes = await fetch(`${API_BASE}/upload/confirm`, {
+  const confRes = await fetch(`${API_BASE}/upload/confirm/`, {
     method: 'POST',
     headers: { "x-tg-data": initData, "Content-Type": "application/json" },
     signal: item.abortController.signal,
