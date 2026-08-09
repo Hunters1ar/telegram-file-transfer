@@ -9,12 +9,12 @@ router = APIRouter()
 
 @router.get("/")
 async def get_files(user: dict = Depends(get_current_user)):
-    from app.repositories.mongodb.user_repository import user_repository
     owner_id = int(user['id'])
-    user_model = await user_repository.get_by_telegram_id(owner_id)
-    show_others = getattr(user_model, 'show_others_files', True) if user_model else True
-    
-    user_files = await file_repository.get_files_for_user(owner_id, show_others, limit=50)
+
+    # IMPORTANT: The website dashboard ALWAYS shows only the current user's own files.
+    # The "show_others_files" preference applies only to the Telegram bot's inline mode (@bot query).
+    # Mixing other users' files into the dashboard would expose private file metadata.
+    user_files = await file_repository.get_by_owner_id(owner_id, limit=50)
     return [
         {
             "id": f.share_id,
@@ -25,6 +25,7 @@ async def get_files(user: dict = Depends(get_current_user)):
             "uploaded_at": f.uploaded_at
         } for f in user_files
     ]
+
 
 class FileUpdateModel(BaseModel):
     name: Optional[str] = None
@@ -57,20 +58,23 @@ async def delete_file_endpoint(share_id: str, user: dict = Depends(get_current_u
     
     return {"status": "ok"}
 
-# Unauthenticated public endpoint for preview page
+# Unauthenticated public endpoint for the file preview page.
+# Only returns metadata for files that are explicitly set to public.
 @router.get("/public/{share_id}")
 async def get_public_file(share_id: str):
     file_meta = await file_repository.get_by_share_id(share_id)
     if not file_meta:
         raise HTTPException(status_code=404, detail="File not found")
-        
-    # Anyone can see file metadata to render the preview page
-    # Actual downloading is still protected by download endpoint
+
+    # Privacy gate: never expose metadata of private files to unauthenticated callers
+    if file_meta.sharing.mode != "public":
+        raise HTTPException(status_code=403, detail="This file is private")
+
     return {
         "id": file_meta.share_id,
         "name": file_meta.original_filename,
         "size": file_meta.size,
         "category": file_meta.category,
         "uploaded_at": file_meta.uploaded_at,
-        "owner_id": file_meta.owner_id
+        # owner_id intentionally omitted — no need to expose internal user IDs publicly
     }

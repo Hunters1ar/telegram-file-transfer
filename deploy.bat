@@ -1,0 +1,1 @@
+git add . && git commit -m "f" && git push && ssh root@134.209.75.49 "cd /root/telegram-file-transfer && git pull && pm2 restart telegram-backend"

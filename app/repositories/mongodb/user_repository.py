@@ -15,10 +15,22 @@ class UserRepository:
         await self.collection.create_indexes(indexes)
 
     async def upsert_user(self, user: User) -> User:
-        user_dict = user.model_dump()
         await self.collection.update_one(
             {"telegram_id": user.telegram_id},
-            {"$set": user_dict},
+            {
+                # Always update identity fields (name/username can change)
+                "$set": {
+                    "telegram_id": user.telegram_id,
+                    "username": user.username,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                },
+                # Only set these fields when the document is first created
+                "$setOnInsert": {
+                    "show_others_files": True,
+                    "created_at": user.created_at,
+                }
+            },
             upsert=True
         )
         return user

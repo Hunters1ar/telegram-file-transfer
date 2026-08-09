@@ -810,24 +810,38 @@ function initRouter() {
 async function loadPreview(shareId) {
     try {
         const res = await fetch(`${API_BASE}/files/public/${shareId}`);
+
+        if (res.status === 403) {
+            document.getElementById('pv-filename').textContent = "🔒 Private File";
+            document.getElementById('pv-size').textContent = "—";
+            document.getElementById('pv-owner').textContent = "—";
+            document.getElementById('pv-date').textContent = "—";
+            document.getElementById('pv-downloads').textContent = "—";
+            document.getElementById('pv-visibility').textContent = "Private";
+            document.getElementById('pv-hash').textContent = shareId;
+            document.getElementById('pv-icon').textContent = "🔒";
+            toast('This file is private', 'error');
+            return;
+        }
+
         if (!res.ok) throw new Error();
-        
+
         const file = await res.json();
-        
+
         document.getElementById('pv-filename').textContent = file.name;
         document.getElementById('pv-size').textContent = formatBytes(file.size);
-        document.getElementById('pv-owner').textContent = 'Hunter'; // Mock owner
+        document.getElementById('pv-owner').textContent = 'Hunterstar Cloud';
         document.getElementById('pv-date').textContent = new Date(file.uploaded_at).toLocaleDateString();
-        document.getElementById('pv-downloads').textContent = '0'; // Could fetch real stats
-        document.getElementById('pv-visibility').textContent = file.category === 'public' ? 'Public' : 'Private';
-        document.getElementById('pv-hash').textContent = file.id; // Mock SHA until real SHA is saved
+        document.getElementById('pv-downloads').textContent = '0';
+        document.getElementById('pv-visibility').textContent = 'Public';
+        document.getElementById('pv-hash').textContent = file.id;
         document.getElementById('pv-icon').textContent = getFileIcon(file.name);
-        
+
         document.getElementById('pv-btn-download').onclick = () => {
             window.location.href = `${API_BASE}/download/${file.id}`;
         };
     } catch (e) {
-        toast('File not found or private', 'error');
+        toast('File not found', 'error');
         document.getElementById('pv-filename').textContent = "File not found";
     }
 }

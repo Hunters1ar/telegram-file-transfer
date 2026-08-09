@@ -47,7 +47,14 @@ class FileRepository:
 
     async def get_files_for_user(self, owner_id: int, show_others: bool, limit: int = 50) -> list[FileMetadata]:
         if show_others:
-            query = {"$or": [{"owner_id": owner_id}, {"sharing.mode": "public"}]}
+            # Own files always included (any visibility).
+            # Other users' files ONLY if explicitly set to public.
+            query = {
+                "$or": [
+                    {"owner_id": owner_id},
+                    {"owner_id": {"$ne": owner_id}, "sharing.mode": "public"}
+                ]
+            }
         else:
             query = {"owner_id": owner_id}
         cursor = self.collection.find(query).sort("uploaded_at", -1).limit(limit)

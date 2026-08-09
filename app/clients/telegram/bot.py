@@ -342,11 +342,18 @@ async def handle_storage_stats(message: types.Message):
 @dp.inline_query()
 async def inline_query_handler(inline_query: types.InlineQuery):
     query = inline_query.query.strip()
-    
+    requester_id = inline_query.from_user.id
+
     try:
         if not query:
-            # Empty query: show user's recent files
-            user_files = await file_repository.get_by_owner_id(inline_query.from_user.id, limit=50)
+            # Empty query: show files based on the user's "show_others_files" preference.
+            # This is the ONLY place where that setting takes effect — the website always
+            # shows only the user's own files regardless.
+            from app.repositories.mongodb.user_repository import user_repository
+            user_model = await user_repository.get_by_telegram_id(requester_id)
+            show_others = getattr(user_model, 'show_others_files', True) if user_model else True
+
+            user_files = await file_repository.get_files_for_user(requester_id, show_others, limit=50)
             if not user_files:
                 no_files = types.InlineQueryResultArticle(
                     id="no_files",
@@ -356,12 +363,12 @@ async def inline_query_handler(inline_query: types.InlineQuery):
                 )
                 await inline_query.answer([no_files], cache_time=5, is_personal=True)
                 return
-                
+
             results = [get_inline_result(f) for f in user_files]
             await inline_query.answer(results, cache_time=5, is_personal=True)
             return
-            
-        # Specific query: show that specific file
+
+        # Specific query by share_id
         file_meta = await file_repository.get_by_share_id(query)
         if not file_meta:
             not_found = types.InlineQueryResultArticle(
@@ -372,10 +379,23 @@ async def inline_query_handler(inline_query: types.InlineQuery):
             )
             await inline_query.answer([not_found], cache_time=5)
             return
-            
+
+        # Privacy gate: block private files that belong to another user
+        is_own = (file_meta.owner_id == requester_id)
+        is_public = (file_meta.sharing.mode == "public")
+        if not is_own and not is_public:
+            blocked = types.InlineQueryResultArticle(
+                id="blocked",
+                title="Private file",
+                description="This file is private and cannot be shared.",
+                input_message_content=types.InputTextMessageContent(message_text="This file is private and cannot be shared.")
+            )
+            await inline_query.answer([blocked], cache_time=5)
+            return
+
         result = get_inline_result(file_meta)
         await inline_query.answer([result], cache_time=5, is_personal=False)
-        
+
     except Exception as e:
         print(f"Inline query error: {e}")
         error_result = types.InlineQueryResultArticle(
@@ -458,11 +478,15 @@ async def handle_confirm_delete(callback: types.CallbackQuery, callback_data: Fi
     file_meta = await file_repository.get_by_share_id(callback_data.share_id)
     if not file_meta or file_meta.owner_id != callback.from_user.id:
         return await callback.answer("File not found or unauthorized.", show_alert=True)
-        
-    # Delete from MongoDB
+
+    # Delete from R2 first, then MongoDB
+    try:
+        from app.repositories.r2.r2_service import delete_file_from_r2
+        await delete_file_from_r2(file_meta.r2_object_key)
+    except Exception as e:
+        print(f"R2 delete failed for {file_meta.r2_object_key}: {e}")
+
     await file_repository.delete(callback_data.share_id)
-    # Ideally delete from R2 as well, but omitting for brevity/safety unless implemented
-    
     await callback.message.edit_text(f"🗑 Deleted <b>{file_meta.original_filename}</b>", parse_mode="HTML")
     await callback.answer("File deleted")
 

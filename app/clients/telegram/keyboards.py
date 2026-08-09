@@ -16,7 +16,7 @@ def get_file_card_keyboard(file_meta: FileMetadata):
     
     # ROW 2
     builder.button(text="🔗 Share", switch_inline_query=file_meta.share_id)
-    builder.button(text="🌍 Website", web_app=types.WebAppInfo(url=f"https://cloud.hunterstar.online/f/{file_meta.share_id}"))
+    builder.button(text="🌍 Website", web_app=types.WebAppInfo(url=f"https://api.hunterstar.online/app/?f={file_meta.share_id}"))
     
     # ROW 3
     fav_text = "⭐ Unfavorite" if file_meta.is_favorite else "⭐ Favorite"
