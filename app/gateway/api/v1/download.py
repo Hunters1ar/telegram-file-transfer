@@ -22,3 +22,13 @@ async def download_file(share_id: str):
     presigned_url = generate_presigned_url(file_meta.r2_object_key, expiration=60)
     
     return RedirectResponse(url=presigned_url)
+
+@router.head("/{share_id}")
+async def check_download_file(share_id: str):
+    """
+    Pre-flight check for downloads.
+    """
+    file_meta = await file_repository.get_by_share_id(share_id)
+    if not file_meta:
+        raise HTTPException(status_code=404, detail="File not found")
+    return {"status": "ok"}

@@ -430,7 +430,10 @@ function renderQueue() {
     el.innerHTML = `
       <div class="q-header">
         <span>${escapeHtml(item.file.name)}</span>
-        <span class="q-pct">0%</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="q-pct">0%</span>
+          <button class="q-cancel-btn" data-idx="${idx}" title="Cancel">✕</button>
+        </div>
       </div>
       <div class="q-bar-track"><div class="q-bar-fill"></div></div>
       <div class="q-meta">
@@ -451,6 +454,25 @@ function updateQueueItem(idx, loaded, total, percent, statusText) {
   if (statusText) el.querySelector('.q-meta span:last-child').textContent = statusText;
 }
 
+dzQueue.addEventListener('click', (e) => {
+  if (e.target.classList.contains('q-cancel-btn')) {
+    const idx = parseInt(e.target.dataset.idx, 10);
+    cancelUpload(idx);
+  }
+});
+
+function cancelUpload(idx) {
+  const item = uploadQueue[idx];
+  if (!item || item.status === 'done' || item.status === 'cancelled') return;
+  item.status = 'cancelled';
+  if (item.xhr) item.xhr.abort();
+  if (item.abortController) item.abortController.abort();
+  
+  updateQueueItem(idx, 0, item.file.size, 0, 'Cancelled');
+  const el = document.getElementById(`q-${idx}`);
+  if (el) el.classList.add('q-cancelled');
+}
+
 async function computeSHA256(file) {
   if (!window.crypto || !window.crypto.subtle) return null;
   const buffer = await file.arrayBuffer();
@@ -460,6 +482,7 @@ async function computeSHA256(file) {
 }
 
 async function uploadFile(item, idx) {
+  item.abortController = new AbortController();
   // Step 0: Hash for Smart Upload Deduplication
   let sha256 = null;
   if (item.file.size < 100 * 1024 * 1024) { // only hash files < 100MB on frontend to prevent hanging
@@ -471,6 +494,7 @@ async function uploadFile(item, idx) {
   const reqRes = await fetch(`${API_BASE}/upload/request`, {
     method: 'POST',
     headers: { "x-tg-data": initData, "Content-Type": "application/json" },
+    signal: item.abortController.signal,
     body: JSON.stringify({
       name: item.file.name,
       size: item.file.size,
@@ -489,6 +513,7 @@ async function uploadFile(item, idx) {
   // Step 2: Upload directly to R2 using XMLHttpRequest (for progress)
   await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    item.xhr = xhr;
     xhr.open('PUT', url, true);
     
     xhr.upload.onprogress = (e) => {
@@ -510,6 +535,7 @@ async function uploadFile(item, idx) {
   const confRes = await fetch(`${API_BASE}/upload/confirm`, {
     method: 'POST',
     headers: { "x-tg-data": initData, "Content-Type": "application/json" },
+    signal: item.abortController.signal,
     body: JSON.stringify({
       name: item.file.name,
       size: item.file.size,
@@ -530,9 +556,11 @@ async function startUploads() {
 
   for (let idx = 0; idx < uploadQueue.length; idx++) {
     const item = uploadQueue[idx];
+    if (item.status === 'cancelled') continue;
     item.status = 'uploading';
     try {
       const result = await uploadFile(item, idx);
+      if (item.status === 'cancelled') continue;
       item.status = 'done';
       updateQueueItem(idx, item.file.size, item.file.size, 100, 'Done');
 
@@ -547,6 +575,7 @@ async function startUploads() {
       addLog('⬆', `Uploaded ${newFile.name}`);
       lastSuccess = newFile;
     } catch (e) {
+      if (item.status === 'cancelled') continue;
       console.error(e);
       item.status = 'error';
       updateQueueItem(idx, 0, item.file.size, 0, 'Failed');
