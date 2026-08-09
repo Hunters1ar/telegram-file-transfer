@@ -1,1 +1,1 @@
-git add . && git commit -m "f" && git push && ssh root@134.209.75.49 "cd /root/telegram-file-transfer && pm2 flush all && git pull && pm2 restart all"
+git add . && git commit -m "f" && git push && ssh root@134.209.75.49 "cd /root/telegram-file-transfer && pm2 flush all && git pull && pm2 restart all" && cd website && vercel --prod
