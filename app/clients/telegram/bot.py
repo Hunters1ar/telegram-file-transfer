@@ -131,6 +131,7 @@ async def command_setlimit_handler(message: types.Message):
     await message.answer(f"✅ Global file size limit set to <b>{limit_mb}MB</b>.", parse_mode="HTML")
 
 @dp.message(Command("settings"))
+@dp.message(F.text == "⚙ Settings")
 async def command_settings_handler(message: types.Message):
     from app.repositories.mongodb.user_repository import user_repository
     user = await user_repository.get_by_telegram_id(message.from_user.id)
@@ -460,10 +461,12 @@ async def handle_coming_soon(callback: types.CallbackQuery):
 
 async def setup_bot_commands(bot_instance: Bot):
     user_commands = [
-        types.BotCommand(command="start", description="Start the bot and show menu")
+        types.BotCommand(command="start", description="Start the bot and show menu"),
+        types.BotCommand(command="settings", description="Manage file visibility")
     ]
     admin_commands = [
         types.BotCommand(command="start", description="Start the bot and show menu"),
+        types.BotCommand(command="settings", description="Manage file visibility"),
         types.BotCommand(command="admin", description="Open Admin Panel"),
         types.BotCommand(command="clearwhole", description="Clear all data"),
         types.BotCommand(command="users", description="List all users"),

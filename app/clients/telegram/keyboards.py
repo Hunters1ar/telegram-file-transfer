@@ -73,10 +73,13 @@ def get_main_reply_keyboard(is_admin: bool = False):
     builder.button(text="📁 My Files")
     builder.button(text="☁ Storage Stats")
     
+    # ROW 3
+    builder.button(text="⚙ Settings")
+    
     if is_admin:
         builder.button(text="🛡 Admin Menu")
-        builder.adjust(1, 2, 1)
+        builder.adjust(1, 2, 2)
     else:
-        builder.adjust(1, 2)
+        builder.adjust(1, 2, 1)
         
     return builder.as_markup(resize_keyboard=True, persistent=True)
