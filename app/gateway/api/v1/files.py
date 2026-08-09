@@ -9,7 +9,12 @@ router = APIRouter()
 
 @router.get("/")
 async def get_files(user: dict = Depends(get_current_user)):
-    user_files = await file_repository.get_by_owner_id(int(user['id']), limit=50)
+    from app.repositories.mongodb.user_repository import user_repository
+    owner_id = int(user['id'])
+    user_model = await user_repository.get_by_telegram_id(owner_id)
+    show_others = getattr(user_model, 'show_others_files', True) if user_model else True
+    
+    user_files = await file_repository.get_files_for_user(owner_id, show_others, limit=50)
     return [
         {
             "id": f.share_id,

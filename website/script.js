@@ -301,11 +301,36 @@ function openDetails(file) {
   document.getElementById('dp-visibility').textContent = file.category === 'public' ? 'Public' : 'Private';
   document.getElementById('dp-created').textContent = timeAgo(file.uploaded_at || new Date());
   
+  const ext = file.name.split('.').pop().toLowerCase();
+  const previewEl = document.getElementById('dp-media-preview');
+  if (previewEl) {
+    previewEl.innerHTML = '';
+    previewEl.hidden = true;
+    
+    const mediaUrl = `${API_BASE}/download/${encodeURIComponent(file.id)}`;
+    
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      previewEl.innerHTML = `<img src="${mediaUrl}" alt="${escapeHtml(file.name)}">`;
+      previewEl.hidden = false;
+    } else if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) {
+      previewEl.innerHTML = `<audio controls controlsList="nodownload"><source src="${mediaUrl}"></audio>`;
+      previewEl.hidden = false;
+    } else if (['mp4', 'webm', 'mov'].includes(ext)) {
+      previewEl.innerHTML = `<video controls controlsList="nodownload" src="${mediaUrl}"></video>`;
+      previewEl.hidden = false;
+    }
+  }
+
   detailsPanel.classList.add('open');
 }
 
 dpClose.addEventListener('click', () => {
   detailsPanel.classList.remove('open');
+  const previewEl = document.getElementById('dp-media-preview');
+  if (previewEl) {
+    previewEl.innerHTML = ''; // Stop audio/video playing when closed
+    previewEl.hidden = true;
+  }
 });
 
 // The details-panel action buttons (Download / Share / Rename / Delete) had

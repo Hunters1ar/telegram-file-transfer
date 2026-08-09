@@ -34,4 +34,15 @@ class UserRepository:
         docs = await cursor.to_list(length=None)
         return [User(**doc) for doc in docs]
 
+    async def toggle_show_others_files(self, telegram_id: int) -> bool:
+        user = await self.get_by_telegram_id(telegram_id)
+        if user:
+            new_value = not getattr(user, 'show_others_files', True)
+            await self.collection.update_one(
+                {"telegram_id": telegram_id},
+                {"$set": {"show_others_files": new_value}}
+            )
+            return new_value
+        return True
+
 user_repository = UserRepository()

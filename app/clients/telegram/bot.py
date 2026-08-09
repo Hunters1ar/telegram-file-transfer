@@ -130,6 +130,33 @@ async def command_setlimit_handler(message: types.Message):
     
     await message.answer(f"✅ Global file size limit set to <b>{limit_mb}MB</b>.", parse_mode="HTML")
 
+@dp.message(Command("settings"))
+async def command_settings_handler(message: types.Message):
+    from app.repositories.mongodb.user_repository import user_repository
+    user = await user_repository.get_by_telegram_id(message.from_user.id)
+    show_others = getattr(user, 'show_others_files', True) if user else True
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    text = "See others files (✅)" if show_others else "See others files (❌)"
+    builder.button(text=text, callback_data="toggle_show_others")
+    builder.adjust(1)
+    
+    await message.answer("<b>Settings</b>\n\nManage your file visibility preferences below.", parse_mode="HTML", reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data == "toggle_show_others")
+async def handle_toggle_show_others_cb(callback: types.CallbackQuery):
+    from app.repositories.mongodb.user_repository import user_repository
+    new_value = await user_repository.toggle_show_others_files(callback.from_user.id)
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    text = "See others files (✅)" if new_value else "See others files (❌)"
+    builder.button(text=text, callback_data="toggle_show_others")
+    builder.adjust(1)
+    
+    await callback.message.edit_reply_markup(reply_markup=builder.as_markup())
+    await callback.answer(f"Setting updated to {'Enabled' if new_value else 'Disabled'}!")
 
 @dp.message(Command("clearwhole"))
 async def command_clearwhole_handler(message: types.Message) -> None:

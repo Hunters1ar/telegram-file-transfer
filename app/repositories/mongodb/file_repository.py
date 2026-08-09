@@ -45,6 +45,15 @@ class FileRepository:
         docs = await cursor.to_list(length=limit)
         return [FileMetadata(**doc) for doc in docs]
 
+    async def get_files_for_user(self, owner_id: int, show_others: bool, limit: int = 50) -> list[FileMetadata]:
+        if show_others:
+            query = {"$or": [{"owner_id": owner_id}, {"sharing.mode": "public"}]}
+        else:
+            query = {"owner_id": owner_id}
+        cursor = self.collection.find(query).sort("uploaded_at", -1).limit(limit)
+        docs = await cursor.to_list(length=limit)
+        return [FileMetadata(**doc) for doc in docs]
+
     async def increment_downloads(self, share_id: str, current_time):
         await self.collection.update_one(
             {"share_id": share_id},
