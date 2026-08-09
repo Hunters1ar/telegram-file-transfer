@@ -29,6 +29,7 @@ let library = [];
 let history = [];
 let uploadQueue = [];
 let activeFile = null; // file currently open in the details panel
+let activeUploadedFile = null; // file shown in the post-upload success card
 let globalLimitBytes = 20 * 1024 * 1024; // Default 20MB
 
 /* ===== DOM ELEMENTS ===== */
@@ -451,6 +452,7 @@ function updateQueueItem(idx, loaded, total, percent, statusText) {
 }
 
 async function computeSHA256(file) {
+  if (!window.crypto || !window.crypto.subtle) return null;
   const buffer = await file.arrayBuffer();
   const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -518,6 +520,169 @@ async function uploadFile(item, idx) {
   if (!confRes.ok) throw new Error("Failed to confirm upload");
   return await confRes.json();
 }
+
+/* ===== UPLOAD QUEUE RUNNER =====
+   This was being called (`startUploads()`) but never defined, so every
+   upload threw immediately and nothing ever completed or showed the
+   success card. */
+async function startUploads() {
+  let lastSuccess = null;
+
+  for (let idx = 0; idx < uploadQueue.length; idx++) {
+    const item = uploadQueue[idx];
+    item.status = 'uploading';
+    try {
+      const result = await uploadFile(item, idx);
+      item.status = 'done';
+      updateQueueItem(idx, item.file.size, item.file.size, 100, 'Done');
+
+      const newFile = {
+        name: (result && result.name) || item.file.name,
+        size: formatBytes((result && result.size) ?? item.file.size),
+        id: (result && (result.id || result.file_id || result.r2_key)) || null,
+        category: (result && result.category) || 'private',
+        uploaded_at: (result && result.uploaded_at) || new Date().toISOString()
+      };
+      library.unshift(newFile);
+      addLog('⬆', `Uploaded ${newFile.name}`);
+      lastSuccess = newFile;
+    } catch (e) {
+      console.error(e);
+      item.status = 'error';
+      updateQueueItem(idx, 0, item.file.size, 0, 'Failed');
+      toast(`Upload failed: ${item.file.name}`, 'error');
+      addLog('❌', `Upload failed: ${item.file.name}`);
+    }
+  }
+
+  renderLibrary();
+  fetchStats();
+
+  if (lastSuccess) {
+    showUploadSuccess(lastSuccess, uploadQueue.length > 1);
+  } else {
+    // Every file in the batch failed — go back to the default dropzone
+    // instead of leaving the queue view stuck on "Failed" forever.
+    dzQueue.hidden = true;
+    dzDefault.hidden = false;
+  }
+}
+
+function showUploadSuccess(file, multiple) {
+  activeUploadedFile = file;
+  document.getElementById('success-filename').textContent = multiple
+    ? `${file.name} (+${uploadQueue.length - 1} more)`
+    : file.name;
+  document.getElementById('success-id').textContent = `🆔 ${file.id ?? 'N/A'}`;
+  dzQueue.hidden = true;
+  dzSuccess.hidden = false;
+}
+
+// The three buttons on the success card had no click handlers at all.
+document.getElementById('btn-copy-id')?.addEventListener('click', () => {
+  if (activeUploadedFile?.id) copyID(activeUploadedFile.id);
+});
+document.getElementById('btn-copy-link')?.addEventListener('click', () => {
+  if (activeUploadedFile?.id) copyLink(activeUploadedFile.id);
+});
+document.getElementById('btn-make-public')?.addEventListener('click', async () => {
+  if (activeUploadedFile) {
+    await makePublic(activeUploadedFile);
+    document.getElementById('success-id').textContent = `🆔 ${activeUploadedFile.id}`;
+  }
+});
+
+// Clicking the dropzone again after a successful upload resets it so the
+// user isn't stuck on the success card with no way back to "Drop files here".
+dropzone.addEventListener('click', (e) => {
+  if (!dzSuccess.hidden && !e.target.closest('.success-actions')) {
+    dzSuccess.hidden = true;
+    dzDefault.hidden = false;
+  }
+});
+
+/* ===== COMMAND PALETTE (Cmd/Ctrl+K) =====
+   The palette markup existed but nothing ever opened it, closed it, or
+   handled clicks on its items. */
+function openCmdPalette() {
+  cmdPalette.hidden = false;
+  cmdInput.value = '';
+  document.querySelectorAll('.cmd-item').forEach(i => i.style.display = '');
+  cmdInput.focus();
+}
+function closeCmdPalette() {
+  cmdPalette.hidden = true;
+}
+
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    cmdPalette.hidden ? openCmdPalette() : closeCmdPalette();
+  }
+  if (e.key === 'Escape' && !cmdPalette.hidden) {
+    closeCmdPalette();
+  }
+});
+
+cmdPalette.addEventListener('click', (e) => {
+  if (e.target === cmdPalette) closeCmdPalette();
+});
+
+cmdInput.addEventListener('input', () => {
+  const q = cmdInput.value.toLowerCase();
+  document.querySelectorAll('.cmd-item').forEach(item => {
+    item.style.display = item.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+document.querySelectorAll('.cmd-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const action = item.dataset.action;
+    closeCmdPalette();
+    if (action === 'upload') fileInput.click();
+    else if (action === 'folder') toast('Folder creation coming soon');
+    else if (action === 'settings') toast('Settings coming soon');
+  });
+});
+
+/* ===== SEARCH BAR =====
+   Typing in it did nothing before; now it filters the visible file list. */
+const topSearchInput = document.querySelector('.search-bar input');
+if (topSearchInput) {
+  topSearchInput.addEventListener('input', () => {
+    const q = topSearchInput.value.toLowerCase();
+    document.querySelectorAll('#main-file-list .file-row').forEach(row => {
+      const name = row.querySelector('.f-name')?.textContent.toLowerCase() || '';
+      row.style.display = name.includes(q) ? '' : 'none';
+    });
+  });
+}
+
+/* ===== SIDEBAR / MOBILE NAV / TOPBAR BELL =====
+   These were plain href="#" links with no JS behind them at all — clicking
+   did literally nothing, which is what made the whole UI feel dead. */
+document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
+  item.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelectorAll('.sidebar-nav .nav-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    if (!item.textContent.includes('Dashboard')) {
+      toast(`${item.textContent.trim()} — coming soon`);
+    }
+  });
+});
+
+document.querySelectorAll('.mobile-nav .m-nav-item:not(.upload-btn)').forEach(item => {
+  item.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelectorAll('.mobile-nav .m-nav-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+  });
+});
+
+document.querySelector('.topbar-btn')?.addEventListener('click', () => {
+  toast('No new notifications');
+});
 
 /* ===== ROUTING ===== */
 function initRouter() {
