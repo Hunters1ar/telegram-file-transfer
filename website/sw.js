@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hunterstar-ux2-cache-v1';
+const CACHE_NAME = 'hunterstar-ux2-cache-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -32,8 +32,12 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Skip API calls and non-GET requests
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/v1/')) {
+  // Skip cross-origin requests, API calls, and non-GET requests
+  if (
+    event.request.method !== 'GET' ||
+    !event.request.url.startsWith(self.location.origin) ||
+    event.request.url.includes('/api/v1/')
+  ) {
     return;
   }
   
