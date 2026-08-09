@@ -26,7 +26,7 @@ const API_BASE = "https://api.hunterstar.online/api/v1";
 
 /* ===== STATE ===== */
 let library = [];
-let history = [];
+let activityLogs = [];
 let uploadQueue = [];
 let activeFile = null; // file currently open in the details panel
 let activeUploadedFile = null; // file shown in the post-upload success card
@@ -174,7 +174,7 @@ function renderLibrary() {
 
 function renderActivity() {
   activityListEl.innerHTML = '';
-  history.forEach(log => {
+  activityLogs.forEach(log => {
     const el = document.createElement('div');
     el.className = 'act-item';
     el.innerHTML = `
@@ -189,8 +189,8 @@ function renderActivity() {
 }
 
 function addLog(icon, msg) {
-  history.unshift({ icon, msg, time: 'Just now' });
-  if (history.length > 5) history.pop();
+  activityLogs.unshift({ icon, msg, time: 'Just now' });
+  if (activityLogs.length > 5) activityLogs.pop();
   renderActivity();
 }
 
