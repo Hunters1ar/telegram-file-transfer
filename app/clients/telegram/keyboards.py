@@ -63,23 +63,17 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 def get_main_reply_keyboard(is_admin: bool = False):
     builder = ReplyKeyboardBuilder()
     
-    # ROW 1 - Big Web App Button
-    builder.button(
-        text="🖥 Open Dashboard", 
-        web_app=types.WebAppInfo(url="https://api.hunterstar.online/app/")
-    )
-    
-    # ROW 2
+    # ROW 1
     builder.button(text="📁 My Files")
     builder.button(text="☁ Storage Stats")
     
-    # ROW 3
+    # ROW 2
     builder.button(text="⚙ Settings")
     
     if is_admin:
         builder.button(text="🛡 Admin Menu")
-        builder.adjust(1, 2, 2)
+        builder.adjust(2, 2)
     else:
-        builder.adjust(1, 2, 1)
+        builder.adjust(2, 1)
         
     return builder.as_markup(resize_keyboard=True, persistent=True)
