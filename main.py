@@ -38,7 +38,10 @@ async def lifespan(app: FastAPI):
     await close_mongo_connection()
 
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from aiogram import types as tg_types
+import os
 
 app = FastAPI(title="Telegram Storage API", lifespan=lifespan)
 
@@ -52,6 +55,10 @@ app.add_middleware(
 
 app.include_router(api_v1_router, prefix="/api/v1")
 
+# Alias: /api/v1/stats -> /api/v1/analytics
+from app.gateway.api.v1.analytics import router as analytics_alias_router
+app.include_router(analytics_alias_router, prefix="/api/v1/stats", tags=["Stats Alias"])
+
 @app.get("/")
 def read_root():
     return {"message": "Telegram Storage API is running."}
@@ -62,3 +69,16 @@ async def telegram_webhook(update: dict):
     from app.clients.telegram.bot import dp, bot
     await dp.feed_update(bot=bot, update=telegram_update)
     return {"status": "ok"}
+
+# Serve the website frontend at /app/
+WEBSITE_DIR = os.path.join(os.path.dirname(__file__), "website")
+
+@app.get("/app/{path:path}")
+async def serve_webapp(path: str = ""):
+    if not path or path == "index.html":
+        return FileResponse(os.path.join(WEBSITE_DIR, "index.html"), media_type="text/html")
+    file_path = os.path.join(WEBSITE_DIR, path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    # SPA fallback
+    return FileResponse(os.path.join(WEBSITE_DIR, "index.html"), media_type="text/html")

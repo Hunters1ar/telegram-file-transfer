@@ -22,3 +22,16 @@ def format_file_card(file_meta: FileMetadata) -> str:
         f"⬇ {file_meta.download_count} Downloads\n"
         f"━━━━━━━━━━━━━━━"
     )
+
+def format_file_caption(file_meta: FileMetadata) -> str:
+    """Compact caption for native file sends (Telegram caption limit: 1024 chars)."""
+    size_mb = file_meta.size / (1024 * 1024)
+    emoji = get_file_emoji(file_meta.category)
+    visibility = "🌍 Public" if file_meta.sharing.mode == "public" else "🔒 Private"
+    
+    return (
+        f"{emoji} <b>{file_meta.original_filename}</b>\n"
+        f"🆔 <code>{file_meta.share_id}</code>  •  📦 {size_mb:.2f} MB\n"
+        f"{visibility}  •  ☁ Hunterstar Cloud"
+    )
+

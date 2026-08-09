@@ -205,7 +205,7 @@ async def handle_file_upload(message: types.Message):
     
     from app.services.upload_service import upload_service
     from app.clients.telegram.keyboards import get_file_card_keyboard
-    from app.clients.telegram.messages import format_file_card
+    from app.clients.telegram.messages import format_file_card, format_file_caption
 
     file_meta = await upload_service.process_upload(
         file_stream=file_stream,
@@ -219,12 +219,65 @@ async def handle_file_upload(message: types.Message):
         category=file_type
     )
     
-    # Respond with File Card
-    await msg.edit_text(
-        text=format_file_card(file_meta), 
-        parse_mode="HTML",
-        reply_markup=get_file_card_keyboard(file_meta)
-    )
+    # Size threshold: 4GB in bytes
+    MAX_NATIVE_SIZE = 4 * 1024 * 1024 * 1024  # 4GB
+    
+    if size <= MAX_NATIVE_SIZE and file_meta.telegram_file_id:
+        # Send file natively so it's playable/viewable in Telegram
+        caption = format_file_caption(file_meta)
+        keyboard = get_file_card_keyboard(file_meta)
+        
+        try:
+            if file_type == "audio":
+                await bot.send_audio(
+                    chat_id=message.chat.id,
+                    audio=file_meta.telegram_file_id,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=keyboard
+                )
+            elif file_type == "video":
+                await bot.send_video(
+                    chat_id=message.chat.id,
+                    video=file_meta.telegram_file_id,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=keyboard
+                )
+            elif file_type == "photo":
+                await bot.send_photo(
+                    chat_id=message.chat.id,
+                    photo=file_meta.telegram_file_id,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=keyboard
+                )
+            else:
+                # document / other file types
+                await bot.send_document(
+                    chat_id=message.chat.id,
+                    document=file_meta.telegram_file_id,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=keyboard
+                )
+            # Delete the "Downloading..." status message
+            await msg.delete()
+        except Exception as e:
+            # Fallback to text card if native send fails
+            print(f"Native send failed, falling back to card: {e}")
+            await msg.edit_text(
+                text=format_file_card(file_meta), 
+                parse_mode="HTML",
+                reply_markup=get_file_card_keyboard(file_meta)
+            )
+    else:
+        # File is too large for native Telegram send, use File Details card
+        await msg.edit_text(
+            text=format_file_card(file_meta), 
+            parse_mode="HTML",
+            reply_markup=get_file_card_keyboard(file_meta)
+        )
 
 def get_inline_result(file_meta):
     f_type = getattr(file_meta, "category", "document")
@@ -234,8 +287,57 @@ def get_inline_result(file_meta):
     # Handle the premium rich card view as requested
     icon = "🎬" if f_type == "video" else "🖼" if f_type == "photo" else "🎵" if f_type == "audio" else "📄"
     visibility = "🌍 Public" if getattr(file_meta.sharing, "mode", "private") == "public" else "🔒 Private"
-    owner_name = "Hunter" # Could fetch from user service, but hardcoding for now since it's the owner's cloud
     
+    MAX_NATIVE_SIZE = 4 * 1024 * 1024 * 1024  # 4GB
+    
+    # For files under 4GB with a telegram_file_id, send native cached media
+    if file_meta.size <= MAX_NATIVE_SIZE and file_meta.telegram_file_id:
+        caption = (
+            f"{icon} <b>{title}</b>\n"
+            f"🆔 <code>{file_meta.share_id}</code>  •  📦 {size_mb} MB\n"
+            f"{visibility}  •  ☁ Hunterstar Cloud"
+        )
+        reply_markup = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="⬇ Download", url=f"https://api.hunterstar.online/api/v1/download/{file_meta.share_id}")],
+            [types.InlineKeyboardButton(text="📋 Copy ID", switch_inline_query=file_meta.share_id), types.InlineKeyboardButton(text="🌍 Open Website", url=f"https://cloud.hunterstar.online/f/{file_meta.share_id}")]
+        ])
+        
+        if f_type == "audio":
+            return types.InlineQueryResultCachedAudio(
+                id=file_meta.share_id,
+                audio_file_id=file_meta.telegram_file_id,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+        elif f_type == "video":
+            return types.InlineQueryResultCachedVideo(
+                id=file_meta.share_id,
+                video_file_id=file_meta.telegram_file_id,
+                title=title,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+        elif f_type == "photo":
+            return types.InlineQueryResultCachedPhoto(
+                id=file_meta.share_id,
+                photo_file_id=file_meta.telegram_file_id,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+        else:
+            return types.InlineQueryResultCachedDocument(
+                id=file_meta.share_id,
+                document_file_id=file_meta.telegram_file_id,
+                title=title,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+    
+    # For files over 4GB or without telegram_file_id, use text article card
     message_text = (
         f"━━━━━━━━━━━━━━━━━━\n"
         f"{icon} <b>{title}</b>\n\n"

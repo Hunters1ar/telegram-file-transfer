@@ -66,7 +66,7 @@ def get_main_reply_keyboard(is_admin: bool = False):
     # ROW 1 - Big Web App Button
     builder.button(
         text="🖥 Open Dashboard", 
-        web_app=types.WebAppInfo(url="https://www.hunterstar.online/?v=2")
+        web_app=types.WebAppInfo(url="https://api.hunterstar.online/app/")
     )
     
     # ROW 2
