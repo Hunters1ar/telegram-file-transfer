@@ -109,3 +109,5 @@ findstr /C:"const CACHE_NAME" website\sw.js
 echo.
 
 cls
+
+ssh root@134.209.75.49 "pm2 logs 10"                                                                  
