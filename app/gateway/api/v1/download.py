@@ -18,8 +18,8 @@ async def download_file(share_id: str):
     current_time = datetime.now(timezone.utc)
     await file_repository.increment_downloads(share_id, current_time)
     
-    # Generate 60-second presigned URL for security
-    presigned_url = generate_presigned_url(file_meta.r2_object_key, expiration=60)
+    # Generate 60-second presigned URL with forced download disposition
+    presigned_url = generate_presigned_url(file_meta.r2_object_key, expiration=60, filename=file_meta.name)
     
     return RedirectResponse(url=presigned_url)
 

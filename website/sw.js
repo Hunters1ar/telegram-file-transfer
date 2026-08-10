@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hunterstar-ux2-cache-v5';
+﻿const CACHE_NAME = 'hunterstar-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -72,3 +72,4 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+

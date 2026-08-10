@@ -201,7 +201,7 @@ async def download_file(share_id: str):
     await file_repository.increment_downloads(share_id, current_time)
     
     # Generate presigned URL
-    presigned_url = generate_presigned_url(file_meta.r2_object_key, expiration=3600)
+    presigned_url = generate_presigned_url(file_meta.r2_object_key, expiration=3600, filename=file_meta.name)
     
     # Redirect user to the presigned URL
     return RedirectResponse(url=presigned_url)
