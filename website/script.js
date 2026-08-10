@@ -264,9 +264,10 @@ async function renameFile(file) {
       body: JSON.stringify({ name: newName })
     });
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
-    file.name = newName;
+    const data = await res.json();
+    file.name = data.name || newName;
     renderLibrary();
-    document.getElementById('dp-filename').textContent = newName;
+    document.getElementById('dp-filename').textContent = file.name;
     toast('File renamed');
   } catch (e) {
     console.error(e);

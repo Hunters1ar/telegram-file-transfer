@@ -51,7 +51,7 @@ async def update_file(share_id: str, update_data: FileUpdateModel, user: dict = 
         file_meta.sharing.mode = 'private'
         
     await file_repository.update(file_meta)
-    return {"status": "ok"}
+    return {"status": "ok", "name": file_meta.original_filename}
 
 @router.delete("/{share_id}")
 async def delete_file_endpoint(share_id: str, user: dict = Depends(get_current_user)):

@@ -2,14 +2,6 @@
 setlocal EnableDelayedExpansion
 
 echo.
-echo ========================================
-echo        HUNTERSTAR DEPLOYMENT
-echo ========================================
-echo.
-
-REM ========================================
-REM 1. BUMP SERVICE WORKER VERSION
-REM ========================================
 
 echo [1/6] Updating service worker version...
 
@@ -23,10 +15,6 @@ if errorlevel 1 (
 
 echo.
 
-REM ========================================
-REM 2. SHOW ACTUAL VERSION
-REM ========================================
-
 echo [2/6] Current service worker version:
 
 findstr /C:"const CACHE_NAME" website\sw.js
@@ -37,11 +25,6 @@ if errorlevel 1 (
 )
 
 echo.
-
-
-REM ========================================
-REM 5. VERCEL
-REM ========================================
 
 echo [2/6] Deploying website to Vercel...
 
@@ -57,10 +40,6 @@ if errorlevel 1 (
 cd ..
 
 echo.
-
-REM ========================================
-REM 3. GIT
-REM ========================================
 
 echo [4/6] Committing changes...
 
@@ -83,9 +62,6 @@ if errorlevel 1 (
 
 echo.
 
-REM ========================================
-REM 4. UPDATE SERVER
-REM ========================================
 
 echo [5/6] Updating production server...
 
@@ -97,18 +73,6 @@ if errorlevel 1 (
 )
 echo.
 
-REM ========================================
-REM 6. DONE
-REM ========================================
-
-echo ========================================
-echo        DEPLOYMENT COMPLETE
-echo ========================================
-echo.
-
-findstr /C:"const CACHE_NAME" website\sw.js
-
-echo.
 
 cls
 

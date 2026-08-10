@@ -256,4 +256,4 @@ async def update_file(share_id: str, update_data: FileUpdateModel, x_tg_data: st
         
     await file_repository.update(file_meta)
     
-    return {"status": "ok"}
+    return {"status": "ok", "name": file_meta.original_filename}
