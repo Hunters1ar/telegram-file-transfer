@@ -144,17 +144,15 @@ a { color: inherit; text-decoration: none; }
   min-width: 22px;
   min-height: 22px;
   vertical-align: middle;
-  filter: invert(1);
   object-fit: contain;
   flex-shrink: 0;
 }
 .m-svg-icon {
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  min-height: 26px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   vertical-align: middle;
-  filter: invert(1);
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -340,16 +338,33 @@ a { color: inherit; text-decoration: none; }
   body { flex-direction: column; }
   .sidebar { display: none; }
   .topbar { padding: 0 16px; }
-  .dashboard-scroll { padding: 16px; padding-bottom: 80px; }
+  .dashboard-scroll { padding: 16px; padding-bottom: 110px; }
   
   .mobile-nav {
     display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    height: 68px; /* Fixed height so large images don't stretch it */
     background: rgba(10, 10, 12, 0.9); backdrop-filter: blur(20px); border-top: 1px solid var(--border-light);
-    justify-content: space-around; padding: 12px 0; padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    justify-content: space-evenly; align-items: center; padding: 0; padding-bottom: env(safe-area-inset-bottom);
   }
-  .m-nav-item { font-size: 20px; color: var(--text-muted); padding: 8px; }
-  .m-nav-item.active { color: var(--crimson); }
-  .upload-btn { display: flex; align-items: center; justify-content: center; }
+  .m-nav-item { 
+    display: flex; align-items: center; justify-content: center; flex: 1;
+    height: 100%; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .m-nav-item img {
+    opacity: 0.5;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .m-nav-item.active img, .m-nav-item:hover img {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.05);
+    filter: drop-shadow(0 4px 12px rgba(176, 0, 32, 0.5));
+  }
+  .upload-btn { display: flex; align-items: center; justify-content: center; transform: translateY(-20px); z-index: 101; }
+  .upload-btn img { 
+    width: 72px !important; height: 72px !important; min-width: 72px !important; min-height: 72px !important; 
+    opacity: 1 !important; filter: drop-shadow(0 12px 24px rgba(255, 255, 255, 0.2)) !important; transform: none !important; 
+  }
+  .upload-btn:hover img, .upload-btn.active img { transform: scale(1.1) translateY(-2px) !important; filter: drop-shadow(0 12px 24px rgba(176, 0, 32, 0.8)) !important; }
   
   .details-panel { position: fixed; width: 100%; max-width: none; }
 }
