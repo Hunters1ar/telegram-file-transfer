@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'hunterstar-v1.3';
+﻿const CACHE_NAME = 'hunterstar-v1.4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

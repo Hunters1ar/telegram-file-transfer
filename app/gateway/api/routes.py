@@ -201,7 +201,10 @@ async def download_file(share_id: str):
     await file_repository.increment_downloads(share_id, current_time)
     
     # Generate presigned URL
-    presigned_url = generate_presigned_url(file_meta.r2_object_key, expiration=3600, filename=file_meta.name)
+    download_filename = file_meta.original_filename
+    if file_meta.extension and not download_filename.endswith(file_meta.extension):
+        download_filename += file_meta.extension
+    presigned_url = generate_presigned_url(file_meta.r2_object_key, expiration=3600, filename=download_filename)
     
     # Redirect user to the presigned URL
     return RedirectResponse(url=presigned_url)
@@ -242,7 +245,12 @@ async def update_file(share_id: str, update_data: FileUpdateModel, x_tg_data: st
         raise HTTPException(status_code=404, detail="File not found")
         
     if update_data.name is not None:
-        file_meta.original_filename = update_data.name
+        new_name = update_data.name
+        if file_meta.extension and not new_name.endswith(file_meta.extension):
+            if "." in new_name and 1 <= len(new_name.split(".")[-1]) <= 4:
+                new_name = new_name.rsplit(".", 1)[0]
+            new_name += file_meta.extension
+        file_meta.original_filename = new_name
     if update_data.category == 'public':
         file_meta.sharing.mode = 'public'
         

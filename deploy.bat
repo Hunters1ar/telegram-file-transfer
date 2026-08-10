@@ -72,6 +72,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
+git config --local credential.username Hunters1ar
+
 git push
 
 if errorlevel 1 (

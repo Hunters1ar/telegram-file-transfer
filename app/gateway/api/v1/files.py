@@ -38,7 +38,13 @@ async def update_file(share_id: str, update_data: FileUpdateModel, user: dict = 
         raise HTTPException(status_code=404, detail="File not found")
         
     if update_data.name is not None:
-        file_meta.original_filename = update_data.name
+        new_name = update_data.name
+        if file_meta.extension and not new_name.endswith(file_meta.extension):
+            # Try to prevent extension stacking if they typed the wrong extension
+            if "." in new_name and 1 <= len(new_name.split(".")[-1]) <= 4:
+                new_name = new_name.rsplit(".", 1)[0]
+            new_name += file_meta.extension
+        file_meta.original_filename = new_name
     if update_data.sharing == 'public':
         file_meta.sharing.mode = 'public'
     elif update_data.sharing == 'private':
