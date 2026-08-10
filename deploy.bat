@@ -87,7 +87,7 @@ REM ========================================
 
 echo [5/6] Updating production server...
 
-ssh root@134.209.75.49 "cd /root/telegram-file-transfer && pm2 flush all && git pull && pm2 restart all"
+ssh root@134.209.75.49 " pm2 flush && cd /root/telegram-file-transfer && git pull && pm2 restart all"
 
 if errorlevel 1 (
     echo ERROR: Server deployment failed.
