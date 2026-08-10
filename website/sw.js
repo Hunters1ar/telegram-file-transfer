@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hunterstar-v1.8';
+const CACHE_NAME = 'hunterstar-v1.9';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -11,7 +11,8 @@ const ASSETS_TO_CACHE = [
   './icons/folders-icon.webp',
   './icons/dashboard-icon.webp',
   './icons/stats-icon.webp',
-  './icons/notification-icon.webp'
+  './icons/notification-icon.webp',
+  './icons/upload.webp'
 ];
 
 self.addEventListener('install', (event) => {

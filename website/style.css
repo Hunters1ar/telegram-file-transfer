@@ -128,7 +128,36 @@ a { color: inherit; text-decoration: none; }
   background: linear-gradient(90deg, rgba(176, 0, 32, 0.15), transparent);
   color: var(--text-main); border-left: 2px solid var(--crimson);
 }
-.nav-item span { font-size: 16px; }
+.nav-item span { 
+  font-size: 18px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  flex-shrink: 0; 
+  width: 24px; 
+}
+
+/* ===== ICONS ===== */
+.svg-icon {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  vertical-align: middle;
+  filter: invert(1);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.m-svg-icon {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  vertical-align: middle;
+  filter: invert(1);
+  object-fit: contain;
+  flex-shrink: 0;
+}
 
 /* ===== MAIN CONTENT ===== */
 .main-content {
@@ -146,7 +175,18 @@ a { color: inherit; text-decoration: none; }
 }
 .search-bar:focus-within { border-color: var(--border-red-glow); }
 .search-bar input { background: none; border: none; outline: none; color: var(--text-main); width: 100%; }
-.topbar-btn { font-size: 18px; padding: 8px; }
+.topbar-btn { 
+  font-size: 18px; 
+  padding: 8px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+}
+.topbar-btn:hover { background: rgba(255,255,255,0.05); }
 
 .dashboard-scroll {
   flex: 1; overflow-y: auto; padding: 32px; display: flex; flex-direction: column; gap: 32px;
@@ -309,7 +349,7 @@ a { color: inherit; text-decoration: none; }
   }
   .m-nav-item { font-size: 20px; color: var(--text-muted); padding: 8px; }
   .m-nav-item.active { color: var(--crimson); }
-  .upload-btn { background: var(--crimson); color: white; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; transform: translateY(-10px); box-shadow: 0 4px 12px var(--crimson-glow); }
+  .upload-btn { display: flex; align-items: center; justify-content: center; }
   
   .details-panel { position: fixed; width: 100%; max-width: none; }
 }
