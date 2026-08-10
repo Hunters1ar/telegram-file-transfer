@@ -107,3 +107,5 @@ echo.
 findstr /C:"const CACHE_NAME" website\sw.js
 
 echo.
+
+clear
