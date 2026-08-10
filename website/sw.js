@@ -1,10 +1,17 @@
-﻿const CACHE_NAME = 'hunterstar-v1.5';
+const CACHE_NAME = 'hunterstar-v1.7';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css',
   './script.js',
-  './icon.png'
+  './icon.png',
+  './icons/trash-icon.png',
+  './icons/favourite-icon.png',
+  './icons/settings-icon.png',
+  './icons/folders-icon.png',
+  './icons/dashboard-icon.png',
+  './icons/stats-icon.png',
+  './icons/notification-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
