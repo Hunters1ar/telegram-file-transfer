@@ -852,8 +852,8 @@ async function fetchLibrary() {
     addLog('🔄', 'Library synced');
   } catch (e) {
     console.error(e);
-    addLog('❌', 'Sync failed');
-    toast('Could not sync your library.', 'error');
+    addLog('❌', 'Sync failed: ' + e.message);
+    toast('Sync err: ' + e.message, 'error');
   }
 }
 
