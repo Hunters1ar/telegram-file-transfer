@@ -599,6 +599,28 @@ function renderAnalytics() {
   const fill = document.getElementById('an-storage-fill');
   if (fill) fill.style.width = `${Math.min((totalBytes / limit) * 100, 100)}%`;
 
+  function groupByType() {
+    const visible = activeLibrary();
+    const groups = {
+      'Images': { label: 'Images', icon: '🖼', files: [] },
+      'Videos': { label: 'Videos', icon: '🎬', files: [] },
+      'Audio': { label: 'Audio', icon: '🎵', files: [] },
+      'Docs': { label: 'Documents', icon: '📄', files: [] },
+      'Archives': { label: 'Archives', icon: '📦', files: [] },
+      'Other': { label: 'Other', icon: '📁', files: [] }
+    };
+    visible.forEach(f => {
+      const ext = f.name.split('.').pop().toLowerCase();
+      if (f.category === 'photo') groups['Images'].files.push(f);
+      else if (f.category === 'video') groups['Videos'].files.push(f);
+      else if (f.category === 'audio') groups['Audio'].files.push(f);
+      else if (['zip','rar','7z','tar','gz'].includes(ext)) groups['Archives'].files.push(f);
+      else if (f.category === 'document') groups['Docs'].files.push(f);
+      else groups['Other'].files.push(f);
+    });
+    return groups;
+  }
+
   // Bar chart by file type
   const typeChart = document.getElementById('an-type-chart');
   if (typeChart) {
@@ -1135,6 +1157,11 @@ if (mainSearchInput) {
     mainSearchInput.blur();
   });
 }
+
+document.getElementById('header-lang-btn')?.addEventListener('click', () => {
+  showView('settings');
+  setTimeout(() => document.getElementById('lang-select')?.focus(), 50);
+});
 
 /* ===== MOBILE & SIDEBAR NAV ROUTING ===== */
 document.querySelectorAll('.m-nav-item').forEach(item => {

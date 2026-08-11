@@ -48,10 +48,25 @@ async def send_welcome_message(chat_id: int, lang: str):
     is_admin = (chat_id == settings.admin)
     
     welcome_text = (
-        f"🛰️ <b>{t('Hunterstar File Transfer', lang)}</b>\n\n"
-        f"{t('Your files are ready to move.', lang)}\n\n"
-        f"{t('Send a file, manage your collection, or create a shareable link.', lang)}\n\n"
-        f"<i>{t('No noise. Just your files.', lang)}</i>"
+        f"🛰️ <b>{t('Welcome to Hunterstar File Transfer', lang)}</b>\n\n"
+        f"{t('Hunterstar File Transfer is a service for convenient file transfer, storage, and sharing in one place.', lang)}\n\n"
+        f"{t('You can send documents, images, videos, archives, and other file types, manage your saved files, and grant access to other users when necessary.', lang)}\n\n"
+        f"<b>{t('Key features:', lang)}</b>\n\n"
+        f"📤 <b>{t('File Transfer', lang)}</b>\n"
+        f"{t('Send files directly to this chat. Once uploaded, they will be available for further management.', lang)}\n\n"
+        f"📁 <b>{t('File Management', lang)}</b>\n"
+        f"{t('View your saved files, get necessary information about them, and manage your collection.', lang)}\n\n"
+        f"🔗 <b>{t('Sharing', lang)}</b>\n"
+        f"{t('Create links to share files with other users without having to re-send the file itself.', lang)}\n\n"
+        f"🔐 <b>{t('Access Control', lang)}</b>\n"
+        f"{t('Manage file visibility and determine who can access them.', lang)}\n\n"
+        f"📊 <b>{t('File Information', lang)}</b>\n"
+        f"{t('Get details about the size, format, upload date, and other parameters of your saved files.', lang)}\n\n"
+        f"⚙️ <b>{t('Settings', lang)}</b>\n"
+        f"{t('Manage service parameters and personal settings.', lang)}\n\n"
+        f"{t('To get started, simply send a file to this chat.', lang)}\n\n"
+        f"{t('You can also use the menu below to view and manage your saved files.', lang)}\n\n"
+        f"<i>{t('Hunterstar File Transfer is designed to make file transfer and management simple, clear, and accessible from a single interface. Start by sending your first file.', lang)}</i>"
     )
     
     await bot.send_message(chat_id, welcome_text, parse_mode="HTML")
@@ -70,7 +85,7 @@ async def handle_language_selection(callback_query: types.CallbackQuery, callbac
 
 
 @dp.message(Command("admin"))
-@dp.message(F.text.in_(get_all_translations("🛡 Admin Menu")))
+@dp.message(F.text.in_(get_all_translations("👑 Admin Menu")))
 async def handle_admin_menu(message: types.Message):
     if message.from_user.id != settings.admin:
         return
@@ -163,7 +178,7 @@ async def command_setlimit_handler(message: types.Message):
     await message.answer(f"✅ Global file size limit set to <b>{limit_mb}MB</b>.", parse_mode="HTML")
 
 @dp.message(Command("settings"))
-@dp.message(F.text.in_(get_all_translations("⚙ Settings")))
+@dp.message(F.text.in_(get_all_translations("⚙️ Settings")))
 async def command_settings_handler(message: types.Message):
     from app.repositories.mongodb.user_repository import user_repository
     user = await user_repository.get_by_telegram_id(message.from_user.id)
@@ -388,7 +403,21 @@ async def handle_my_files(message: types.Message):
     builder.adjust(1)
     await message.answer(f"📁 <b>{t('Your Files', lang)}</b> ({len(files)} {t('total', lang)}):", parse_mode="HTML", reply_markup=builder.as_markup())
 
-@dp.message(F.text.in_(get_all_translations("☁ Storage Stats")))
+@dp.message(F.text.in_(get_all_translations("🔗 My Links")))
+async def handle_my_links(message: types.Message):
+    from app.repositories.mongodb.user_repository import user_repository
+    user = await user_repository.get_by_telegram_id(message.from_user.id)
+    lang = user.language if user and user.language else "en"
+    await message.answer(t("Tap the 'Menu' button to open the Web App and manage your links.", lang))
+
+@dp.message(F.text.in_(get_all_translations("📤 Send File")))
+async def handle_send_file(message: types.Message):
+    from app.repositories.mongodb.user_repository import user_repository
+    user = await user_repository.get_by_telegram_id(message.from_user.id)
+    lang = user.language if user and user.language else "en"
+    await message.answer(t("Simply drag and drop or attach a file to this chat to upload it to Hunterstar File Transfer.", lang))
+
+@dp.message(F.text.in_(get_all_translations("📊 Storage")))
 async def handle_storage_stats(message: types.Message):
     from app.repositories.mongodb.user_repository import user_repository
     user = await user_repository.get_by_telegram_id(message.from_user.id)

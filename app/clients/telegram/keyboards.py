@@ -45,12 +45,9 @@ def get_more_menu_keyboard(share_id: str):
     
     builder.button(text="✏ Rename", callback_data=FileAction(action="rename", share_id=share_id))
     builder.button(text="🗑 Delete", callback_data=FileAction(action="delete", share_id=share_id))
-    builder.button(text="📄 Details", callback_data=FileAction(action="details", share_id=share_id))
-    builder.button(text="📂 Move", callback_data=FileAction(action="move", share_id=share_id))
     builder.button(text="📊 Analytics", callback_data=FileAction(action="analytics", share_id=share_id))
     builder.button(text="📋 Copy ID", callback_data=FileAction(action="copy_id", share_id=share_id))
     builder.button(text="🔗 Copy Link", callback_data=FileAction(action="copy_link", share_id=share_id))
-    builder.button(text="⏳ Expire", callback_data=FileAction(action="expire", share_id=share_id))
     builder.button(text="🔑 Password", callback_data=FileAction(action="password", share_id=share_id))
     
     builder.button(text="🔙 Back", callback_data=FileAction(action="back_to_main", share_id=share_id))
@@ -77,17 +74,15 @@ def get_main_reply_keyboard(is_admin: bool = False, lang: str = "en"):
     from app.clients.telegram.i18n import t
     builder = ReplyKeyboardBuilder()
     
-    # ROW 1
+    builder.button(text=t("📤 Send File", lang))
     builder.button(text=t("📁 My Files", lang))
-    builder.button(text=t("☁ Storage Stats", lang))
-    
-    # ROW 2
-    builder.button(text=t("⚙ Settings", lang))
+    builder.button(text=t("🔗 My Links", lang))
+    builder.button(text=t("📊 Storage", lang))
+    builder.button(text=t("⚙️ Settings", lang))
     
     if is_admin:
-        builder.button(text=t("🛡 Admin Menu", lang))
-        builder.adjust(2, 2)
-    else:
-        builder.adjust(2, 1)
+        builder.button(text=t("👑 Admin Menu", lang))
+        
+    builder.adjust(2, 2, 1, 1) if is_admin else builder.adjust(2, 2, 1)
         
     return builder.as_markup(resize_keyboard=True, persistent=True)

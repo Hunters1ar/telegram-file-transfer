@@ -517,3 +517,25 @@ a { color: inherit; text-decoration: none; }
   .w-val { font-size: 20px; }
   .f-meta { display: none; } /* Hide metadata on very small screens to prevent row overlap */
 }
+
+/* Settings Dropdown */
+.theme-select {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  margin-top: 10px;
+  cursor: pointer;
+  outline: none;
+}
+.theme-select:focus {
+  border-color: var(--crimson);
+}
+.theme-select option {
+  background: var(--bg-deep);
+  color: var(--text-main);
+}
