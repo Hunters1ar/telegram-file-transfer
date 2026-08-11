@@ -1118,7 +1118,10 @@ document.querySelectorAll('.cmd-item').forEach(item => {
     } else if (action === 'folder') {
       showView('folders');
     } else if (action === 'settings') {
-      toast('Settings coming soon.');
+      showView('settings');
+    } else if (action === 'language') {
+      showView('settings');
+      setTimeout(() => document.getElementById('lang-select')?.focus(), 50);
     }
     cmdPalette.hidden = true;
   });
