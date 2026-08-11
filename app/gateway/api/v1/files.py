@@ -22,6 +22,8 @@ async def get_files(user: dict = Depends(get_current_user)):
             "size": f.size,
             "category": f.category,
             "sharing": f.sharing.mode,
+            "is_favorite": f.is_favorite,
+            "folder_id": f.folder_id,
             "uploaded_at": f.uploaded_at
         } for f in user_files
     ]
@@ -30,6 +32,8 @@ async def get_files(user: dict = Depends(get_current_user)):
 class FileUpdateModel(BaseModel):
     name: Optional[str] = None
     sharing: Optional[str] = None  # 'public' or 'private'
+    is_favorite: Optional[bool] = None
+    folder_id: Optional[str] = None
 
 @router.patch("/{share_id}")
 async def update_file(share_id: str, update_data: FileUpdateModel, user: dict = Depends(get_current_user)):
@@ -49,6 +53,16 @@ async def update_file(share_id: str, update_data: FileUpdateModel, user: dict = 
         file_meta.sharing.mode = 'public'
     elif update_data.sharing == 'private':
         file_meta.sharing.mode = 'private'
+        
+    if update_data.is_favorite is not None:
+        file_meta.is_favorite = update_data.is_favorite
+        
+    if update_data.folder_id is not None:
+        # A special value like "root" or "" could mean remove from folder
+        if update_data.folder_id in ["root", ""]:
+            file_meta.folder_id = None
+        else:
+            file_meta.folder_id = update_data.folder_id
         
     await file_repository.update(file_meta)
     return {"status": "ok", "name": file_meta.original_filename}

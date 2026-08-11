@@ -18,7 +18,6 @@ if (tg) {
 
 // FOR TESTING OUTSIDE TELEGRAM
 if (!isMiniApp) {
-  // Mock initData for local testing (Uses dummy ID 123456)
   initData = "user=%7B%22id%22%3A123456%7D&hash=mock";
 }
 
@@ -26,11 +25,20 @@ const API_BASE = "https://api.hunterstar.online/api/v1";
 
 /* ===== STATE ===== */
 let library = [];
+let customFolders = [];
 let activityLogs = [];
 let uploadQueue = [];
-let activeFile = null; // file currently open in the details panel
-let activeUploadedFile = null; // file shown in the post-upload success card
-let globalLimitBytes = 20 * 1024 * 1024; // Default 20MB
+let activeFile = null; 
+let activeUploadedFile = null; 
+let globalLimitBytes = 20 * 1024 * 1024; 
+let currentView = 'dashboard';
+
+/* ===== FAVORITES & TRASH (client-side, persisted locally) ===== */
+const isFavorite = (id) => {
+  const f = library.find(file => file.id === id);
+  return f ? f.is_favorite : false;
+};
+const activeLibrary = () => library;
 
 /* ===== DOM ELEMENTS ===== */
 const fileListEl = document.getElementById('main-file-list');
@@ -54,6 +62,7 @@ const dzSuccess = document.getElementById('dz-success');
 
 const cmdPalette = document.getElementById('cmd-palette');
 const cmdInput = document.getElementById('cmd-input');
+const mainSearchInput = document.getElementById('main-search-input');
 
 const detailsPanel = document.getElementById('details-panel');
 const dpClose = document.getElementById('dp-close');
@@ -94,16 +103,13 @@ function timeAgo(dateString) {
   return "Just now";
 }
 
-// Prevents filenames from breaking markup (e.g. a file called "<img onerror=...>")
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str ?? '';
   return div.innerHTML;
 }
 
-/* ===== TOAST NOTIFICATIONS =====
-   Small non-blocking feedback so failures (like a dead download link)
-   don't just silently open a blank error page with no explanation. */
+/* ===== TOAST NOTIFICATIONS ===== */
 let toastContainer = document.getElementById('toast-container');
 if (!toastContainer) {
   toastContainer = document.createElement('div');
@@ -125,51 +131,81 @@ function toast(message, type = 'info') {
 }
 
 /* ===== RENDERERS ===== */
-function renderLibrary() {
-  widgetFilesCount.textContent = library.length;
-  
-  if (library.length === 0) {
-    emptyStateEl.style.display = 'block';
-    const rows = fileListEl.querySelectorAll('.file-row');
-    rows.forEach(r => r.remove());
-    return;
-  }
-  
-  emptyStateEl.style.display = 'none';
-  fileListEl.innerHTML = '';
-  
-  library.forEach(file => {
-    const row = document.createElement('div');
-    row.className = 'file-row';
-    const icon = getFileIcon(file.name);
-    const safeName = escapeHtml(file.name);
-    
+// Shared file-row builder used by every view. `context` = 'default' | 'trash'.
+function buildFileRow(file, context = 'default') {
+  const row = document.createElement('div');
+  row.className = 'file-row';
+  row.setAttribute('draggable', 'true');
+  row.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/plain', file.id);
+    row.classList.add('dragging');
+  });
+  row.addEventListener('dragend', () => {
+    row.classList.remove('dragging');
+  });
+  const icon = getFileIcon(file.name);
+  const safeName = escapeHtml(file.name);
+
+  if (context === 'trash') {
     row.innerHTML = `
       <div class="f-info">
         <span class="f-icon">${icon}</span>
         <span class="f-name">${safeName}</span>
       </div>
-      <div class="f-meta">
-        <span>${file.size}</span>
-        <span>${file.sharing === 'public' ? '🌍 Public' : '🔒 Private'}</span>
-      </div>
+      <div class="f-meta"><span>${file.size}</span></div>
       <div class="f-actions" onclick="event.stopPropagation()">
-        <button class="f-btn" data-action="download">⬇</button>
-        <button class="f-btn" data-action="copy-link">🔗</button>
-        <button class="f-btn" data-action="more">⋮</button>
+        <button class="f-btn" data-action="restore" title="Restore">♻</button>
+        <button class="f-btn f-btn-danger" data-action="purge" title="Delete permanently">🗑</button>
       </div>
     `;
+    row.querySelector('[data-action="restore"]').addEventListener('click', () => restoreFromTrash(file));
+    row.querySelector('[data-action="purge"]').addEventListener('click', () => purgeFile(file));
+    return row;
+  }
 
-    row.querySelector('[data-action="download"]').addEventListener('click', () => downloadFile(file));
-    row.querySelector('[data-action="copy-link"]').addEventListener('click', () => copyLink(file.id));
-    row.querySelector('[data-action="more"]').addEventListener('click', (e) => {
-      e.stopPropagation();
-      openDetails(file);
-    });
+  const fav = isFavorite(file.id);
+  row.innerHTML = `
+    <div class="f-info">
+      <span class="f-icon">${icon}</span>
+      <span class="f-name">${safeName}</span>
+    </div>
+    <div class="f-meta">
+      <span>${file.size}</span>
+      <span>${file.sharing === 'public' ? '🌍 Public' : '🔒 Private'}</span>
+    </div>
+    <div class="f-actions" onclick="event.stopPropagation()">
+      <button class="f-btn f-star ${fav ? 'is-fav' : ''}" data-action="fav" title="Favorite">⭐</button>
+      <button class="f-btn" data-action="download">⬇</button>
+      <button class="f-btn" data-action="copy-link">🔗</button>
+      <button class="f-btn f-btn-danger" data-action="trash" title="Delete permanently">🗑</button>
+    </div>
+  `;
+  row.querySelector('[data-action="fav"]').addEventListener('click', (e) => { e.stopPropagation(); toggleFavorite(file); });
+  row.querySelector('[data-action="download"]').addEventListener('click', () => downloadFile(file));
+  row.querySelector('[data-action="copy-link"]').addEventListener('click', () => copyLink(file.id));
+  row.querySelector('[data-action="trash"]').addEventListener('click', (e) => { e.stopPropagation(); deleteFile(file); });
+  row.addEventListener('click', () => openDetails(file));
+  return row;
+}
 
-    row.addEventListener('click', () => openDetails(file));
-    fileListEl.appendChild(row);
-  });
+function renderLibrary() {
+  const visible = activeLibrary();
+  widgetFilesCount.textContent = visible.length;
+
+  if (visible.length === 0) {
+    emptyStateEl.style.display = 'block';
+    const rows = fileListEl.querySelectorAll('.file-row');
+    rows.forEach(r => r.remove());
+  } else {
+    emptyStateEl.style.display = 'none';
+    fileListEl.innerHTML = '';
+    visible.forEach(file => fileListEl.appendChild(buildFileRow(file)));
+  }
+
+  // Keep the other views in sync whenever the library changes.
+  renderFolders();
+  renderFavorites();
+  renderAnalytics();
 }
 
 function renderActivity() {
@@ -195,24 +231,18 @@ function addLog(icon, msg) {
 }
 
 /* ===== FILE ACTIONS ===== */
-
-// Copies the Telegram deep-link for a file
 function copyLink(id) {
   navigator.clipboard?.writeText(`https://t.me/hunterstar_bot?start=${encodeURIComponent(id)}`);
   toast('Link copied to clipboard');
   if (isMiniApp && tg) tg.HapticFeedback?.notification('success');
 }
 
-// Copies the raw file ID (previously this was wired to copyLink by mistake,
-// so "Copy ID" and "Copy Link" did the exact same thing)
 function copyID(id) {
   navigator.clipboard?.writeText(id);
   toast('ID copied to clipboard');
   if (isMiniApp && tg) tg.HapticFeedback?.notification('success');
 }
 
-// Opens the download URL, but checks it first instead of blindly opening a
-// new tab that may land on a raw "Internal Server Error" page with no context.
 async function downloadFile(file) {
   const url = `${API_BASE}/download/${encodeURIComponent(file.id)}`;
   const win = window.open('', '_blank');
@@ -309,6 +339,339 @@ async function makePrivate(file) {
   }
 }
 
+/* ===== FAVORITES ACTIONS ===== */
+async function toggleFavorite(file) {
+  const newFavState = !file.is_favorite;
+  // Optimistic update
+  file.is_favorite = newFavState;
+  renderLibrary();
+  
+  try {
+    const res = await fetch(`${API_BASE}/files/${encodeURIComponent(file.id)}`, {
+      method: 'PATCH',
+      headers: { "x-tg-data": initData, "Content-Type": "application/json" },
+      body: JSON.stringify({ is_favorite: newFavState })
+    });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    
+    if (newFavState) {
+      toast('Added to favorites');
+      addLog('★', `Favorited ${file.name}`);
+    } else {
+      toast('Removed from favorites');
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Could not update favorite. Please try again.', 'error');
+    // Revert on error
+    file.is_favorite = !newFavState;
+    renderLibrary();
+  }
+}
+
+/* ===== FILE TYPE GROUPING (for Folders & Analytics) ===== */
+function getFileType(filename) {
+  const ext = (filename.split('.').pop() || '').toLowerCase();
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return { key: 'images', label: 'Images', icon: '🖼' };
+  if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) return { key: 'videos', label: 'Videos', icon: '🎬' };
+  if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) return { key: 'audio', label: 'Audio', icon: '🎵' };
+  if (['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return { key: 'documents', label: 'Documents', icon: '📄' };
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return { key: 'archives', label: 'Archives', icon: '📦' };
+  if (['js', 'ts', 'py', 'html', 'css', 'cpp', 'c', 'java', 'json'].includes(ext)) return { key: 'code', label: 'Code', icon: '💻' };
+  return { key: 'other', label: 'Other', icon: '📁' };
+}
+
+function parseSizeToBytes(file) {
+  if (typeof file.sizeBytes === 'number') return file.sizeBytes;
+  return 0;
+}
+
+/* ===== VIEW RENDERERS ===== */
+const folderGridEl = document.getElementById('folder-grid');
+const folderDetailEl = document.getElementById('folder-detail');
+const folderFileListEl = document.getElementById('folder-file-list');
+const folderDetailTitleEl = document.getElementById('folder-detail-title');
+const folderBackBtn = document.getElementById('folder-back');
+let openFolderKey = null;
+
+async function moveFileToFolder(fileId, folderId) {
+  try {
+    const res = await fetch(`${API_BASE}/files/${encodeURIComponent(fileId)}`, {
+      method: 'PATCH',
+      headers: { "x-tg-data": initData, "Content-Type": "application/json" },
+      body: JSON.stringify({ folder_id: folderId || "" })
+    });
+    if (!res.ok) throw new Error("Move failed");
+    
+    // Optimistic update
+    const file = library.find(f => f.id === fileId);
+    if (file) file.folder_id = folderId || null;
+    renderLibrary();
+    toast("File moved successfully");
+    addLog('📂', `Moved file to folder`);
+  } catch (e) {
+    console.error(e);
+    toast("Could not move file.", "error");
+  }
+}
+
+document.getElementById('btn-new-folder')?.addEventListener('click', async () => {
+  const name = prompt("Enter folder name:");
+  if (!name) return;
+  try {
+    const res = await fetch(`${API_BASE}/folders/`, {
+      method: 'POST',
+      headers: { "x-tg-data": initData, "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+    if (!res.ok) throw new Error("Failed to create folder");
+    const newFolder = await res.json();
+    await fetchFolders(); // Sync all to get exact schema
+    renderFolders();
+    toast("Folder created");
+  } catch (e) {
+    console.error(e);
+    toast("Could not create folder. Name might be taken.", "error");
+  }
+});
+
+function renderFolders() {
+  if (!folderGridEl) return;
+  
+  const unfolderedSection = document.getElementById('unfoldered-section');
+  const unfolderedFileListEl = document.getElementById('unfoldered-file-list');
+  
+  folderGridEl.innerHTML = '';
+  if (customFolders.length === 0) {
+    folderGridEl.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><span class="empty-icon">📁</span><p>No folders yet. Click '+ New Folder' to create one.</p></div>`;
+  }
+
+  customFolders.forEach(folder => {
+    const folderFiles = activeLibrary().filter(f => f.folder_id === folder.id);
+    const bytes = folderFiles.reduce((acc, f) => acc + parseSizeToBytes(f), 0);
+    
+    const card = document.createElement('div');
+    card.className = 'folder-card';
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between;">
+        <span class="folder-card-icon">📁</span>
+        <button class="f-btn f-btn-danger btn-del-folder" data-id="${folder.id}" title="Delete Folder">✕</button>
+      </div>
+      <span class="folder-card-name">${escapeHtml(folder.name)}</span>
+      <span class="folder-card-meta">${folderFiles.length} file${folderFiles.length === 1 ? '' : 's'}${bytes ? ' · ' + formatBytes(bytes) : ''}</span>
+    `;
+    
+    card.addEventListener('click', (e) => {
+      if (e.target.classList.contains('btn-del-folder')) {
+        e.stopPropagation();
+        deleteFolder(folder);
+      } else {
+        openFolder(folder.id);
+      }
+    });
+
+    // Drag and Drop Logic
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      card.classList.add('drag-over');
+    });
+    card.addEventListener('dragleave', e => {
+      card.classList.remove('drag-over');
+    });
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+      const fileId = e.dataTransfer.getData('text/plain');
+      if (fileId) moveFileToFolder(fileId, folder.id);
+    });
+    
+    folderGridEl.appendChild(card);
+  });
+
+  // Populate Unfoldered Files
+  if (unfolderedFileListEl) {
+    unfolderedFileListEl.innerHTML = '';
+    const unfolderedFiles = activeLibrary().filter(f => !f.folder_id);
+    if (unfolderedFiles.length === 0) {
+      unfolderedFileListEl.innerHTML = `<div class="empty-state"><p style="color:var(--text-muted); font-size:13px; margin:0;">No unorganized files.</p></div>`;
+    } else {
+      unfolderedFiles.forEach(file => unfolderedFileListEl.appendChild(buildFileRow(file)));
+    }
+  }
+
+  // If a folder is open, refresh its contents
+  if (openFolderKey && customFolders.find(f => f.id === openFolderKey)) {
+    openFolder(openFolderKey);
+  } else {
+    openFolderKey = null;
+    folderDetailEl.hidden = true;
+    folderGridEl.hidden = false;
+    if (unfolderedSection) unfolderedSection.hidden = false;
+  }
+}
+
+async function deleteFolder(folder) {
+  if (!confirm(`Delete folder "${folder.name}"? Files inside will be moved to the main dashboard.`)) return;
+  try {
+    const res = await fetch(`${API_BASE}/folders/${folder.id}`, {
+      method: 'DELETE',
+      headers: { "x-tg-data": initData }
+    });
+    if (!res.ok) throw new Error("Delete failed");
+    // Update local state files to have no folder
+    library.forEach(f => {
+      if (f.folder_id === folder.id) f.folder_id = null;
+    });
+    customFolders = customFolders.filter(f => f.id !== folder.id);
+    if (openFolderKey === folder.id) {
+      openFolderKey = null;
+      folderDetailEl.hidden = true;
+      folderGridEl.hidden = false;
+      const unfolderedSection = document.getElementById('unfoldered-section');
+      if (unfolderedSection) unfolderedSection.hidden = false;
+    }
+    renderLibrary();
+    toast("Folder deleted");
+  } catch(e) {
+    console.error(e);
+    toast("Failed to delete folder", "error");
+  }
+}
+
+function openFolder(folderId) {
+  const folder = customFolders.find(f => f.id === folderId);
+  if (!folder) return;
+  openFolderKey = folderId;
+  folderDetailTitleEl.textContent = `📁 ${folder.name}`;
+  folderFileListEl.innerHTML = '';
+  
+  const files = activeLibrary().filter(f => f.folder_id === folderId);
+  if (files.length === 0) {
+    folderFileListEl.innerHTML = `<div style="color:var(--text-muted); font-size:13px;">This folder is empty.</div>`;
+  } else {
+    files.forEach(file => folderFileListEl.appendChild(buildFileRow(file)));
+  }
+  
+  folderGridEl.hidden = true;
+  folderDetailEl.hidden = false;
+  const unfolderedSection = document.getElementById('unfoldered-section');
+  if (unfolderedSection) unfolderedSection.hidden = true;
+}
+
+if (folderBackBtn) {
+  folderBackBtn.addEventListener('click', () => {
+    openFolderKey = null;
+    folderDetailEl.hidden = true;
+    folderGridEl.hidden = false;
+    const unfolderedSection = document.getElementById('unfoldered-section');
+    if (unfolderedSection) unfolderedSection.hidden = false;
+  });
+}
+
+function renderFavorites() {
+  const listEl = document.getElementById('fav-file-list');
+  if (!listEl) return;
+  const favs = activeLibrary().filter(f => isFavorite(f.id));
+  listEl.innerHTML = '';
+  if (favs.length === 0) {
+    listEl.innerHTML = `<div class="empty-state"><span class="empty-icon">⭐</span><p>No favorites yet. Tap the star on a file to add it here.</p></div>`;
+    return;
+  }
+  favs.forEach(file => listEl.appendChild(buildFileRow(file)));
+}
+
+
+function renderAnalytics() {
+  const visible = activeLibrary();
+  const totalFiles = visible.length;
+  const publicCount = visible.filter(f => f.sharing === 'public').length;
+  const privateCount = totalFiles - publicCount;
+  const favCount = visible.filter(f => isFavorite(f.id)).length;
+  const totalBytes = visible.reduce((sum, f) => sum + parseSizeToBytes(f), 0);
+  const limit = 100 * 1024 * 1024 * 1024;
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('an-files', totalFiles);
+  set('an-public', publicCount);
+  set('an-favorites', favCount);
+  set('an-storage-used', formatBytes(totalBytes));
+  set('an-storage-sub', `of 100 GB`);
+  const fill = document.getElementById('an-storage-fill');
+  if (fill) fill.style.width = `${Math.min((totalBytes / limit) * 100, 100)}%`;
+
+  // Bar chart by file type
+  const typeChart = document.getElementById('an-type-chart');
+  if (typeChart) {
+    const groups = groupByType();
+    const keys = Object.keys(groups).sort((a, b) => groups[b].files.length - groups[a].files.length);
+    const max = keys.reduce((m, k) => Math.max(m, groups[k].files.length), 0) || 1;
+    if (keys.length === 0) {
+      typeChart.innerHTML = `<p style="color:var(--text-muted);font-size:13px">No files to analyze yet.</p>`;
+    } else {
+      typeChart.innerHTML = keys.map(k => {
+        const g = groups[k];
+        const pct = (g.files.length / max) * 100;
+        return `
+          <div class="bar-row">
+            <div class="bar-label"><span>${g.icon} ${g.label}</span><span>${g.files.length}</span></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+          </div>`;
+      }).join('');
+    }
+  }
+
+  // Visibility split
+  const visChart = document.getElementById('an-visibility-chart');
+  if (visChart) {
+    const total = totalFiles || 1;
+    const pubPct = (publicCount / total) * 100;
+    const privPct = (privateCount / total) * 100;
+    visChart.innerHTML = `
+      <div class="split-track">
+        <div class="split-seg-public" style="width:${pubPct}%"></div>
+        <div class="split-seg-private" style="width:${privPct}%"></div>
+      </div>
+      <div class="split-legend">
+        <div class="legend-row"><span class="legend-dot" style="background:var(--crimson)"></span> Public <span class="count">${publicCount}</span></div>
+        <div class="legend-row"><span class="legend-dot" style="background:rgba(255,255,255,0.35)"></span> Private <span class="count">${privateCount}</span></div>
+      </div>`;
+  }
+}
+
+const viewMap = {
+  dashboard: 'main-dashboard-view',
+  folders: 'view-folders',
+  favorites: 'view-favorites',
+  settings: 'view-settings',
+  analytics: 'view-analytics'
+};
+
+function showView(view) {
+  if (!viewMap[view]) return;
+  currentView = view;
+
+  Object.values(viewMap).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = (id !== viewMap[view]);
+  });
+
+  // Sync active state on both navs.
+  document.querySelectorAll('.sidebar-nav .nav-item').forEach(i =>
+    i.classList.toggle('active', i.dataset.view === view));
+  document.querySelectorAll('.m-nav-item').forEach(i => {
+    if (i.classList.contains('upload-btn')) return;
+    i.classList.toggle('active', i.dataset.view === view);
+  });
+
+  // Close details panel when leaving the dashboard.
+  if (view !== 'dashboard') detailsPanel.classList.remove('open');
+
+  // Refresh the freshly shown view's data.
+  if (view === 'folders') renderFolders();
+  else if (view === 'favorites') renderFavorites();
+  else if (view === 'analytics') renderAnalytics();
+}
+
 /* ===== DETAILS PANEL ===== */
 function refreshVisibilityButton() {
   const btn = document.getElementById('dp-btn-visibility');
@@ -354,19 +717,17 @@ dpClose.addEventListener('click', () => {
   detailsPanel.classList.remove('open');
   const previewEl = document.getElementById('dp-media-preview');
   if (previewEl) {
-    previewEl.innerHTML = ''; // Stop audio/video playing when closed
+    previewEl.innerHTML = '';
     previewEl.hidden = true;
   }
 });
 
-// The details-panel action buttons
 const dpActionButtons = document.querySelectorAll('.dp-actions .dp-btn:not(#dp-btn-visibility)');
 if (dpActionButtons[0]) dpActionButtons[0].addEventListener('click', () => activeFile && downloadFile(activeFile));
 if (dpActionButtons[1]) dpActionButtons[1].addEventListener('click', () => activeFile && copyLink(activeFile.id));
 if (dpActionButtons[2]) dpActionButtons[2].addEventListener('click', () => activeFile && renameFile(activeFile));
 if (dpActionButtons[3]) dpActionButtons[3].addEventListener('click', () => activeFile && deleteFile(activeFile));
 
-// Visibility toggle button
 const dpVisibilityBtn = document.getElementById('dp-btn-visibility');
 if (dpVisibilityBtn) {
   dpVisibilityBtn.addEventListener('click', async () => {
@@ -378,6 +739,47 @@ if (dpVisibilityBtn) {
     }
     document.getElementById('dp-visibility').textContent = activeFile.sharing === 'public' ? '🌍 Public' : '🔒 Private';
     refreshVisibilityButton();
+  });
+}
+
+const dpMoveBtn = document.getElementById('dp-btn-move');
+const folderModal = document.getElementById('folder-modal');
+const folderModalList = document.getElementById('folder-modal-list');
+const btnCloseFolderModal = document.getElementById('btn-close-folder-modal');
+
+if (dpMoveBtn) {
+  dpMoveBtn.addEventListener('click', () => {
+    if (!activeFile) return;
+    folderModalList.innerHTML = '';
+    
+    // Add root option
+    const rootItem = document.createElement('div');
+    rootItem.className = 'cmd-item';
+    rootItem.innerHTML = `<span>📁</span> Dashboard (Remove from folder)`;
+    rootItem.onclick = () => {
+      moveFileToFolder(activeFile.id, "root");
+      folderModal.hidden = true;
+    };
+    folderModalList.appendChild(rootItem);
+    
+    customFolders.forEach(folder => {
+      const el = document.createElement('div');
+      el.className = 'cmd-item';
+      el.innerHTML = `<span>📁</span> ${escapeHtml(folder.name)}`;
+      el.onclick = () => {
+        moveFileToFolder(activeFile.id, folder.id);
+        folderModal.hidden = true;
+      };
+      folderModalList.appendChild(el);
+    });
+    
+    folderModal.hidden = false;
+  });
+}
+
+if (btnCloseFolderModal) {
+  btnCloseFolderModal.addEventListener('click', () => {
+    folderModal.hidden = true;
   });
 }
 
@@ -400,8 +802,7 @@ async function fetchStats() {
         globalLimitBytes = stats.limit_mb * 1024 * 1024;
     }
     
-    // Sidebar storage (100GB limit)
-    const limit = 100 * 1024 * 1024 * 1024; // 100 GB
+    const limit = 100 * 1024 * 1024 * 1024; 
     const percent = Math.min((stats.total_size / limit) * 100, 100);
     const textEl = document.getElementById('sb-storage-text');
     const fillEl = document.getElementById('sb-storage-fill');
@@ -414,9 +815,23 @@ async function fetchStats() {
   }
 }
 
+async function fetchFolders() {
+  if (!initData) return;
+  try {
+    const res = await fetch(`${API_BASE}/folders/`, {
+      headers: { "x-tg-data": initData }
+    });
+    if (!res.ok) throw new Error("Failed to fetch folders");
+    customFolders = await res.json();
+  } catch (e) {
+    console.error("Failed to fetch folders", e);
+  }
+}
+
 async function fetchLibrary() {
   if (!initData) return;
   try {
+    await fetchFolders(); // Sync folders first
     const res = await fetch(`${API_BASE}/files/`, {
       headers: { "x-tg-data": initData }
     });
@@ -425,9 +840,12 @@ async function fetchLibrary() {
     library = files.map(f => ({
       name: f.name,
       size: formatBytes(f.size),
+      sizeBytes: f.size || 0,
       id: f.id,
       category: f.category,
       sharing: f.sharing || 'private',
+      is_favorite: f.is_favorite || false,
+      folder_id: f.folder_id || null,
       uploaded_at: f.uploaded_at
     }));
     renderLibrary();
@@ -473,9 +891,7 @@ function handleFiles(files) {
     return;
   }
   
-  // No size limit on the frontend for direct-to-R2 uploads
   const validFiles = files;
-
   if (validFiles.length === 0) return;
   
   uploadQueue = validFiles.map(file => ({ file, progress: 0, status: 'queued' }));
@@ -549,14 +965,12 @@ async function computeSHA256(file) {
 
 async function uploadFile(item, idx) {
   item.abortController = new AbortController();
-  // Step 0: Hash for Smart Upload Deduplication
   let sha256 = null;
-  if (item.file.size < 100 * 1024 * 1024) { // only hash files < 100MB on frontend to prevent hanging
+  if (item.file.size < 100 * 1024 * 1024) {
     updateQueueItem(idx, 0, item.file.size, 0, "Hashing...");
     sha256 = await computeSHA256(item.file);
   }
 
-  // Step 1: Request Presigned URL
   const reqRes = await fetch(`${API_BASE}/upload/request/`, {
     method: 'POST',
     headers: { "x-tg-data": initData, "Content-Type": "application/json" },
@@ -576,7 +990,6 @@ async function uploadFile(item, idx) {
       return final_meta;
   }
 
-  // Step 2: Upload directly to R2 using XMLHttpRequest (for progress)
   await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     item.xhr = xhr;
@@ -597,7 +1010,6 @@ async function uploadFile(item, idx) {
     xhr.send(item.file);
   });
 
-  // Step 3: Confirm Upload
   const confRes = await fetch(`${API_BASE}/upload/confirm/`, {
     method: 'POST',
     headers: { "x-tg-data": initData, "Content-Type": "application/json" },
@@ -613,10 +1025,6 @@ async function uploadFile(item, idx) {
   return await confRes.json();
 }
 
-/* ===== UPLOAD QUEUE RUNNER =====
-   This was being called (`startUploads()`) but never defined, so every
-   upload threw immediately and nothing ever completed or showed the
-   success card. */
 async function startUploads() {
   let lastSuccess = null;
 
@@ -633,8 +1041,10 @@ async function startUploads() {
       const newFile = {
         name: (result && result.name) || item.file.name,
         size: formatBytes((result && result.size) ?? item.file.size),
+        sizeBytes: (result && result.size) ?? item.file.size ?? 0,
         id: (result && (result.id || result.file_id || result.r2_key)) || null,
         category: (result && result.category) || 'private',
+        sharing: (result && result.sharing) || 'private',
         uploaded_at: (result && result.uploaded_at) || new Date().toISOString()
       };
       library.unshift(newFile);
@@ -654,204 +1064,91 @@ async function startUploads() {
   fetchStats();
 
   if (lastSuccess) {
-    showUploadSuccess(lastSuccess, uploadQueue.length > 1);
+    activeUploadedFile = lastSuccess;
+    dzQueue.hidden = true;
+    dzSuccess.hidden = false;
+    
+    document.getElementById('success-filename').textContent = lastSuccess.name;
+    document.getElementById('success-id').textContent = '🆔 ' + lastSuccess.id;
   } else {
-    // Every file in the batch failed — go back to the default dropzone
-    // instead of leaving the queue view stuck on "Failed" forever.
+    // If all failed or cancelled, revert to default dropzone view
     dzQueue.hidden = true;
     dzDefault.hidden = false;
   }
 }
 
-function showUploadSuccess(file, multiple) {
-  activeUploadedFile = file;
-  document.getElementById('success-filename').textContent = multiple
-    ? `${file.name} (+${uploadQueue.length - 1} more)`
-    : file.name;
-  document.getElementById('success-id').textContent = `🆔 ${file.id ?? 'N/A'}`;
-  dzQueue.hidden = true;
-  dzSuccess.hidden = false;
-}
-
-// The three buttons on the success card had no click handlers at all.
-document.getElementById('btn-copy-id')?.addEventListener('click', () => {
-  if (activeUploadedFile?.id) copyID(activeUploadedFile.id);
+/* ===== SUCCESS CARD ACTIONS ===== */
+document.getElementById('btn-copy-id').addEventListener('click', () => {
+  if (activeUploadedFile && activeUploadedFile.id) copyID(activeUploadedFile.id);
 });
-document.getElementById('btn-copy-link')?.addEventListener('click', () => {
-  if (activeUploadedFile?.id) copyLink(activeUploadedFile.id);
+document.getElementById('btn-copy-link').addEventListener('click', () => {
+  if (activeUploadedFile && activeUploadedFile.id) copyLink(activeUploadedFile.id);
 });
-document.getElementById('btn-make-public')?.addEventListener('click', async () => {
+document.getElementById('btn-make-public').addEventListener('click', async () => {
   if (activeUploadedFile) {
     await makePublic(activeUploadedFile);
-    document.getElementById('success-id').textContent = `🆔 ${activeUploadedFile.id}`;
+    toast('File is now public!');
   }
 });
 
-// Clicking the dropzone again after a successful upload resets it so the
-// user isn't stuck on the success card with no way back to "Drop files here".
-dropzone.addEventListener('click', (e) => {
-  if (!dzSuccess.hidden && !e.target.closest('.success-actions')) {
-    dzSuccess.hidden = true;
-    dzDefault.hidden = false;
-  }
-});
-
-/* ===== COMMAND PALETTE (Cmd/Ctrl+K) =====
-   The palette markup existed but nothing ever opened it, closed it, or
-   handled clicks on its items. */
-function openCmdPalette() {
-  cmdPalette.hidden = false;
-  cmdInput.value = '';
-  document.querySelectorAll('.cmd-item').forEach(i => i.style.display = '');
-  cmdInput.focus();
-}
-function closeCmdPalette() {
-  cmdPalette.hidden = true;
-}
-
+/* ===== COMMAND PALETTE LOGIC (Ctrl+K) ===== */
 document.addEventListener('keydown', (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault();
-    cmdPalette.hidden ? openCmdPalette() : closeCmdPalette();
+    cmdPalette.hidden = false;
+    cmdInput.focus();
   }
-  if (e.key === 'Escape' && !cmdPalette.hidden) {
-    closeCmdPalette();
+  if (e.key === 'Escape') {
+    cmdPalette.hidden = true;
+    cmdInput.value = '';
   }
 });
 
 cmdPalette.addEventListener('click', (e) => {
-  if (e.target === cmdPalette) closeCmdPalette();
-});
-
-cmdInput.addEventListener('input', () => {
-  const q = cmdInput.value.toLowerCase();
-  document.querySelectorAll('.cmd-item').forEach(item => {
-    item.style.display = item.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
+  if (e.target === cmdPalette) {
+    cmdPalette.hidden = true;
+  }
 });
 
 document.querySelectorAll('.cmd-item').forEach(item => {
   item.addEventListener('click', () => {
     const action = item.dataset.action;
-    closeCmdPalette();
-    if (action === 'upload') fileInput.click();
-    else if (action === 'folder') toast('Folder creation coming soon');
-    else if (action === 'settings') toast('Settings coming soon');
+    if (action === 'upload') {
+      fileInput.click();
+    } else if (action === 'folder') {
+      showView('folders');
+    } else if (action === 'settings') {
+      toast('Settings coming soon.');
+    }
+    cmdPalette.hidden = true;
   });
 });
 
-/* ===== SEARCH BAR =====
-   Typing in it did nothing before; now it filters the visible file list. */
-const topSearchInput = document.querySelector('.search-bar input');
-if (topSearchInput) {
-  topSearchInput.addEventListener('input', () => {
-    const q = topSearchInput.value.toLowerCase();
-    document.querySelectorAll('#main-file-list .file-row').forEach(row => {
-      const name = row.querySelector('.f-name')?.textContent.toLowerCase() || '';
-      row.style.display = name.includes(q) ? '' : 'none';
-    });
+// Also allow clicking the main search bar to open the command palette for better UX
+if (mainSearchInput) {
+  mainSearchInput.addEventListener('focus', () => {
+    cmdPalette.hidden = false;
+    cmdInput.focus();
+    mainSearchInput.blur();
   });
 }
 
-/* ===== SIDEBAR / MOBILE NAV / TOPBAR BELL =====
-   These were plain href="#" links with no JS behind them at all — clicking
-   did literally nothing, which is what made the whole UI feel dead. */
+/* ===== MOBILE & SIDEBAR NAV ROUTING ===== */
+document.querySelectorAll('.m-nav-item').forEach(item => {
+  item.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (item.classList.contains('upload-btn')) return;
+    if (item.dataset.view) showView(item.dataset.view);
+  });
+});
+
 document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
   item.addEventListener('click', (e) => {
     e.preventDefault();
-    document.querySelectorAll('.sidebar-nav .nav-item').forEach(i => i.classList.remove('active'));
-    item.classList.add('active');
-    if (!item.textContent.includes('Dashboard')) {
-      toast(`${item.textContent.trim()} — coming soon`);
-    }
+    if (item.dataset.view) showView(item.dataset.view);
   });
 });
 
-document.querySelectorAll('.mobile-nav .m-nav-item:not(.upload-btn)').forEach(item => {
-  item.addEventListener('click', (e) => {
-    e.preventDefault();
-    document.querySelectorAll('.mobile-nav .m-nav-item').forEach(i => i.classList.remove('active'));
-    item.classList.add('active');
-  });
-});
-
-document.querySelector('.topbar-btn')?.addEventListener('click', () => {
-  toast('No new notifications');
-});
-
-/* ===== ROUTING ===== */
-function initRouter() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const shareId = urlParams.get('f');
-  
-  // Also check if they used path-based routing (/f/XYZ)
-  const pathParts = window.location.pathname.split('/');
-  let pathShareId = null;
-  if (pathParts[1] === 'f' && pathParts[2]) {
-      pathShareId = pathParts[2];
-  }
-  
-  const targetId = shareId || pathShareId;
-  
-  if (targetId) {
-      // Hide dashboard, show preview
-      document.getElementById('main-dashboard-view').hidden = true;
-      document.querySelector('.sidebar').hidden = true;
-      document.querySelector('.topbar').hidden = true;
-      document.getElementById('file-preview-view').hidden = false;
-      loadPreview(targetId);
-  } else {
-      renderLibrary();
-      renderActivity();
-      fetchLibrary();
-      fetchStats();
-  }
-}
-
-async function loadPreview(shareId) {
-    try {
-        const res = await fetch(`${API_BASE}/files/public/${shareId}`);
-
-        if (res.status === 403) {
-            document.getElementById('pv-filename').textContent = "🔒 Private File";
-            document.getElementById('pv-size').textContent = "—";
-            document.getElementById('pv-owner').textContent = "—";
-            document.getElementById('pv-date').textContent = "—";
-            document.getElementById('pv-downloads').textContent = "—";
-            document.getElementById('pv-visibility').textContent = "Private";
-            document.getElementById('pv-hash').textContent = shareId;
-            document.getElementById('pv-icon').textContent = "🔒";
-            toast('This file is private', 'error');
-            return;
-        }
-
-        if (!res.ok) throw new Error();
-
-        const file = await res.json();
-
-        document.getElementById('pv-filename').textContent = file.name;
-        document.getElementById('pv-size').textContent = formatBytes(file.size);
-        document.getElementById('pv-owner').textContent = 'Hunterstar Cloud';
-        document.getElementById('pv-date').textContent = new Date(file.uploaded_at).toLocaleDateString();
-        document.getElementById('pv-downloads').textContent = '0';
-        document.getElementById('pv-visibility').textContent = 'Public';
-        document.getElementById('pv-hash').textContent = file.id;
-        document.getElementById('pv-icon').textContent = getFileIcon(file.name);
-
-        document.getElementById('pv-btn-download').onclick = () => {
-            window.location.href = `${API_BASE}/download/${file.id}`;
-        };
-    } catch (e) {
-        toast('File not found', 'error');
-        document.getElementById('pv-filename').textContent = "File not found";
-    }
-}
-initRouter();
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('Service Worker registered', reg))
-      .catch(err => console.error('Service Worker registration failed', err));
-  });
-}
+/* ===== INITIALIZATION ===== */
+fetchStats();
+fetchLibrary();

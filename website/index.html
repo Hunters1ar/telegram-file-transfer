@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
@@ -47,22 +47,21 @@
     </div>
     
     <nav class="sidebar-nav">
-      <a href="#" class="nav-item active"><span><img src="icons/dashboard-icon.webp" class="svg-icon" alt="dashboard-icon"></span> Dashboard</a>
-      <a href="#" class="nav-item"><span><img src="icons/folders-icon.webp" class="svg-icon" alt="folders-icon"></span> Folders</a>
-      <a href="#" class="nav-item"><span><img src="icons/favourite-icon.webp" class="svg-icon" alt="favourite-icon"></span> Favorites</a>
-      <a href="#" class="nav-item"><span><img src="icons/trash-icon.webp" class="svg-icon" alt="trash-icon"></span> Trash</a>
-      <a href="#" class="nav-item"><span><img src="icons/stats-icon.webp" class="svg-icon" alt="stats-icon"></span> Analytics</a>
-      <a href="#" class="nav-item"><span><img src="icons/settings-icon.webp" class="svg-icon" alt="settings-icon"></span> Settings</a>
+      <a href="#" class="nav-item active" data-view="dashboard"><span><img src="icons/dashboard-icon.webp" class="svg-icon" alt="dashboard-icon"></span> Dashboard</a>
+      <a href="#" class="nav-item" data-view="folders"><span><img src="icons/folders-icon.webp" class="svg-icon" alt="folders-icon"></span> Folders</a>
+      <a href="#" class="nav-item" data-view="favorites"><span><img src="icons/favourite-icon.webp" class="svg-icon" alt="favourite-icon"></span> Favorites</a>
+      <a href="#" class="nav-item" data-view="analytics"><span><img src="icons/stats-icon.webp" class="svg-icon" alt="stats-icon"></span> Analytics</a>
+      <a href="#" class="nav-item" data-view="settings"><span><img src="icons/settings-icon.webp" class="svg-icon" alt="settings-icon"></span> Settings</a>
     </nav>
   </aside>
 
   <!-- Mobile Bottom Nav -->
   <nav class="mobile-nav">
-    <a href="#" class="m-nav-item active"><img src="icons/dashboard-icon.webp" class="m-svg-icon" alt="dashboard-icon"></a>
-    <a href="#" class="m-nav-item"><img src="icons/folders-icon.webp" class="m-svg-icon" alt="folders-icon"></a>
+    <a href="#" class="m-nav-item active" data-view="dashboard"><img src="icons/dashboard-icon.webp" class="m-svg-icon" alt="dashboard-icon"></a>
+    <a href="#" class="m-nav-item" data-view="folders"><img src="icons/folders-icon.webp" class="m-svg-icon" alt="folders-icon"></a>
     <a href="#" class="m-nav-item upload-btn"><img src="icons/upload.webp" class="m-svg-icon" alt="upload-icon"></a>
-    <a href="#" class="m-nav-item"><img src="icons/favourite-icon.webp" class="m-svg-icon" alt="favourite-icon"></a>
-    <a href="#" class="m-nav-item"><img src="icons/settings-icon.webp" class="m-svg-icon" alt="settings-icon"></a>
+    <a href="#" class="m-nav-item" data-view="favorites"><img src="icons/favourite-icon.webp" class="m-svg-icon" alt="favourite-icon"></a>
+    <a href="#" class="m-nav-item" data-view="settings"><img src="icons/settings-icon.webp" class="m-svg-icon" alt="settings-icon"></a>
   </nav>
 
   <!-- Main Content -->
@@ -70,7 +69,7 @@
     <header class="topbar">
       <div class="search-bar">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" placeholder="Search (Press Ctrl+K)">
+        <input type="text" id="main-search-input" placeholder="Search (Press Ctrl+K)">
       </div>
       <div class="topbar-actions">
         <button class="topbar-btn"><img src="icons/notification-icon.webp" class="svg-icon" alt="notification-icon"></button>
@@ -155,46 +154,95 @@
       
     </div>
 
-    <!-- File Preview View (Hidden by default) -->
-    <div class="preview-scroll" id="file-preview-view" hidden>
-      <div class="preview-card">
-        <div class="pc-header">
-          <h2>Hunterstar Cloud</h2>
+    <!-- Folders View -->
+    <div class="dashboard-scroll view" id="view-folders" hidden>
+      <div class="view-head" style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <h2>Folders</h2>
+          <p>Organize your files into custom folders.</p>
         </div>
-        <div class="pc-media" id="pv-media">
-          <!-- Placeholder for media/icon -->
-          <span class="pc-icon-large" id="pv-icon">📄</span>
+        <button id="btn-new-folder" style="background:var(--crimson); color:white; padding:8px 16px; border-radius:6px; font-weight:500; font-size:14px;">+ New Folder</button>
+      </div>
+      <div class="folder-grid" id="folder-grid"></div>
+      
+      <div id="unfoldered-section">
+        <h3 style="margin:20px 0 10px 0; font-size:16px; font-family:'Space Grotesk',sans-serif;">Unorganized Files</h3>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:12px;">Drag files from here onto a folder.</p>
+        <div class="file-list" id="unfoldered-file-list"></div>
+      </div>
+
+      <div class="folder-detail" id="folder-detail" hidden>
+        <button class="folder-back" id="folder-back">← All folders</button>
+        <h3 id="folder-detail-title">Folder</h3>
+        <div class="file-list always-actions" id="folder-file-list"></div>
+      </div>
+    </div>
+
+    <!-- Favorites View -->
+    <div class="dashboard-scroll view" id="view-favorites" hidden>
+      <div class="view-head">
+        <h2>Favorites</h2>
+        <p>Files you have starred for quick access.</p>
+      </div>
+      <div class="file-list always-actions" id="fav-file-list"></div>
+    </div>
+
+    <!-- Analytics View -->
+    <div class="dashboard-scroll view" id="view-analytics" hidden>
+      <div class="view-head">
+        <h2>Analytics</h2>
+        <p>An overview of your storage and library.</p>
+      </div>
+
+      <section class="storage-hero">
+        <div class="storage-hero-info">
+          <span class="w-label">Storage used</span>
+          <span class="storage-hero-val" id="an-storage-used">0 B</span>
+          <span class="storage-hero-sub" id="an-storage-sub">of 100 GB</span>
         </div>
-        <div class="pc-info">
-          <h3 id="pv-filename">Loading...</h3>
-          <p class="pc-size" id="pv-size">0 MB</p>
-          <div class="pc-meta-grid">
+        <div class="storage-hero-bar"><div class="storage-hero-fill" id="an-storage-fill" style="width:0%"></div></div>
+      </section>
+
+      <section class="widgets">
+        <div class="widget"><span class="w-label">Files</span><span class="w-val" id="an-files">0</span></div>
+        <div class="widget"><span class="w-label">Public</span><span class="w-val" id="an-public">0</span></div>
+        <div class="widget"><span class="w-label">Favorites</span><span class="w-val" id="an-favorites">0</span></div>
+      </section>
+
+      <section class="content-split analytics-split">
+        <div class="chart-card">
+          <h3>By file type</h3>
+          <div class="bar-chart" id="an-type-chart"></div>
+        </div>
+        <div class="chart-card">
+          <h3>Visibility</h3>
+          <div class="split-chart" id="an-visibility-chart"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Settings View -->
+    <div class="dashboard-scroll view" id="view-settings" hidden>
+      <div class="view-head">
+        <h2>Settings</h2>
+        <p>Manage your account and app preferences.</p>
+      </div>
+      <section class="settings-section">
+        <div class="settings-card">
+          <div class="settings-row">
             <div>
-              <span>Uploaded</span>
-              <strong id="pv-date">-</strong>
+              <h3>Theme</h3>
+              <p>Luxury Crimson (Default)</p>
             </div>
+          </div>
+          <div class="settings-row">
             <div>
-              <span>Downloads</span>
-              <strong id="pv-downloads">-</strong>
-            </div>
-            <div>
-              <span>Owner</span>
-              <strong id="pv-owner">-</strong>
-            </div>
-            <div>
-              <span>Visibility</span>
-              <strong id="pv-visibility">-</strong>
+              <h3>File Limit</h3>
+              <p id="settings-file-limit">100 GB</p>
             </div>
           </div>
         </div>
-        <div class="pc-actions">
-          <button class="pc-btn-primary" id="pv-btn-download">⬇ Download</button>
-        </div>
-        <div class="pc-footer">
-          <span>SHA256</span>
-          <code id="pv-hash">...</code>
-        </div>
-      </div>
+      </section>
     </div>
   </main>
 
@@ -219,14 +267,28 @@
     <div class="dp-actions">
       <button class="dp-btn"><span class="dp-icon">⬇</span> Download</button>
       <button class="dp-btn"><span class="dp-icon">🔗</span> Share</button>
+      <button class="dp-btn" id="dp-btn-move"><span class="dp-icon">📂</span> Move to...</button>
       <button class="dp-btn"><span class="dp-icon">✏</span> Rename</button>
       <button class="dp-btn" id="dp-btn-visibility"><span class="dp-icon">🌍</span> Make Public</button>
       <button class="dp-btn dp-danger"><span class="dp-icon">🗑</span> Delete</button>
     </div>
   </aside>
 
+  <!-- Move to Folder Modal -->
+  <div class="cmd-palette-overlay" id="folder-modal" hidden>
+    <div class="cmd-palette" style="max-width:400px; padding:20px; display:flex; flex-direction:column; gap:16px;">
+      <h3 style="font-family:'Space Grotesk',sans-serif; font-size:18px;">Move to Folder</h3>
+      <div id="folder-modal-list" style="display:flex; flex-direction:column; gap:8px; max-height:300px; overflow-y:auto;">
+        <!-- Populated by JS -->
+      </div>
+      <button id="btn-close-folder-modal" style="padding:10px; background:rgba(255,255,255,0.1); border-radius:6px; margin-top:8px;">Cancel</button>
+    </div>
+  </div>
+
 </div>
 
-<script src="script.js?v=8"></script>
+<div class="toast-container" id="toast-container"></div>
+
+<script src="script.js"></script>
 </body>
 </html>
