@@ -339,6 +339,7 @@ def get_inline_result(file_meta):
         f"🆔 <code>{file_meta.share_id}</code>\n"
         f"📦 {size_mb} MB\n"
         f"👤 {visibility}\n"
+        f"☁ Hunterstar Cloud\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"Download securely below."
     )
