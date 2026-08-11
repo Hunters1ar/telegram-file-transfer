@@ -41,7 +41,7 @@
     
     <div class="sidebar-storage">
       <div class="storage-text">
-        <span>Storage</span>
+        <span data-i18n>Storage</span>
         <span id="sb-storage-text">0 B / 100 GB</span>
       </div>
       <div class="storage-bar"><div class="storage-fill" id="sb-storage-fill" style="width:0%"></div></div>
@@ -82,19 +82,19 @@
       <!-- Widgets -->
       <section class="widgets">
         <div class="widget">
-          <span class="w-label">Storage</span>
+          <span class="w-label" data-i18n>Storage</span>
           <span class="w-val" id="widget-storage">0 B</span>
         </div>
         <div class="widget">
-          <span class="w-label">Files</span>
+          <span class="w-label" data-i18n>Files</span>
           <span class="w-val" id="widget-files-count">0</span>
         </div>
         <div class="widget">
-          <span class="w-label">Downloads</span>
+          <span class="w-label" data-i18n>Downloads</span>
           <span class="w-val" id="widget-downloads">0</span>
         </div>
         <div class="widget">
-          <span class="w-label">Shared</span>
+          <span class="w-label" data-i18n>Shared</span>
           <span class="w-val" id="widget-shared">0</span>
         </div>
       </section>
@@ -105,9 +105,9 @@
           <input type="file" id="file-input" multiple hidden>
           <div class="dz-content" id="dz-default">
             <span class="dz-icon-large">⬆</span>
-            <h3>Drop files here</h3>
-            <p>or <button id="browse-btn">Choose File</button></p>
-            <span class="dz-limit">Supports files up to 100 GB</span>
+            <h3 data-i18n>Drop files here</h3>
+            <p><span data-i18n>or</span> <button id="browse-btn" data-i18n>Choose File</button></p>
+            <span class="dz-limit" data-i18n>Supports files up to 100 GB</span>
           </div>
           
           <!-- Upload Queue -->
@@ -118,13 +118,13 @@
           <!-- Upload Success -->
           <div class="dz-success" id="dz-success" hidden>
             <span class="success-icon">✅</span>
-            <h3>Upload Complete</h3>
+            <h3 data-i18n>Upload Complete</h3>
             <p id="success-filename" class="success-file">project.zip</p>
             <p id="success-id" class="success-id">🆔 X231CDS</p>
             <div class="success-actions">
-              <button id="btn-copy-id">📋 Copy ID</button>
-              <button id="btn-copy-link">🔗 Copy Link</button>
-              <button id="btn-make-public">🌍 Make Public</button>
+              <button id="btn-copy-id"><span data-i18n>📋 Copy ID</span></button>
+              <button id="btn-copy-link"><span data-i18n>🔗 Copy Link</span></button>
+              <button id="btn-make-public"><span data-i18n>🌍 Make Public</span></button>
             </div>
           </div>
         </div>
@@ -133,20 +133,20 @@
       <!-- File List & Activity -->
       <section class="content-split">
         <div class="file-browser">
-          <h3>Recent Files</h3>
+          <h3 data-i18n>Recent Files</h3>
           <div class="file-list" id="main-file-list">
             <!-- Empty State default -->
             <div class="empty-state" id="empty-state">
               <span class="empty-icon">📁</span>
-              <p>No files yet.</p>
-              <button class="empty-btn" onclick="document.getElementById('file-input').click()">Upload your first file</button>
+              <p data-i18n>No files yet.</p>
+              <button class="empty-btn" onclick="document.getElementById('file-input').click()" data-i18n>Upload your first file</button>
             </div>
             <!-- Files populated by JS -->
           </div>
         </div>
         
         <div class="recent-activity">
-          <h3>Recent Activity</h3>
+          <h3 data-i18n>Recent Activity</h3>
           <div class="activity-list" id="activity-list">
             <!-- Populated by JS -->
           </div>
@@ -159,22 +159,22 @@
     <div class="dashboard-scroll view" id="view-folders" hidden>
       <div class="view-head" style="display:flex; justify-content:space-between; align-items:center;">
         <div>
-          <h2>Folders</h2>
-          <p>Organize your files into custom folders.</p>
+          <h2 data-i18n>Folders</h2>
+          <p data-i18n>Organize your files into custom folders.</p>
         </div>
-        <button id="btn-new-folder" style="background:var(--crimson); color:white; padding:8px 16px; border-radius:6px; font-weight:500; font-size:14px;">+ New Folder</button>
+        <button id="btn-new-folder" style="background:var(--crimson); color:white; padding:8px 16px; border-radius:6px; font-weight:500; font-size:14px;" data-i18n>+ New Folder</button>
       </div>
       <div class="folder-grid" id="folder-grid"></div>
       
       <div id="unfoldered-section">
-        <h3 style="margin:20px 0 10px 0; font-size:16px; font-family:'Space Grotesk',sans-serif;">Unorganized Files</h3>
-        <p style="color:var(--text-muted); font-size:13px; margin-bottom:12px;">Drag files from here onto a folder.</p>
+        <h3 style="margin:20px 0 10px 0; font-size:16px; font-family:'Space Grotesk',sans-serif;" data-i18n>Unorganized Files</h3>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:12px;" data-i18n>Drag files from here onto a folder.</p>
         <div class="file-list" id="unfoldered-file-list"></div>
       </div>
 
       <div class="folder-detail" id="folder-detail" hidden>
-        <button class="folder-back" id="folder-back">← All folders</button>
-        <h3 id="folder-detail-title">Folder</h3>
+        <button class="folder-back" id="folder-back" data-i18n>← All folders</button>
+        <h3 id="folder-detail-title" data-i18n>Folder</h3>
         <div class="file-list always-actions" id="folder-file-list"></div>
       </div>
     </div>
@@ -191,13 +191,13 @@
     <!-- Analytics View -->
     <div class="dashboard-scroll view" id="view-analytics" hidden>
       <div class="view-head">
-        <h2>Analytics</h2>
-        <p>An overview of your storage and library.</p>
+        <h2 data-i18n>Analytics</h2>
+        <p data-i18n>An overview of your storage and library.</p>
       </div>
 
       <section class="storage-hero">
         <div class="storage-hero-info">
-          <span class="w-label">Storage used</span>
+          <span class="w-label" data-i18n>Storage used</span>
           <span class="storage-hero-val" id="an-storage-used">0 B</span>
           <span class="storage-hero-sub" id="an-storage-sub">of 100 GB</span>
         </div>
@@ -205,18 +205,18 @@
       </section>
 
       <section class="widgets">
-        <div class="widget"><span class="w-label">Files</span><span class="w-val" id="an-files">0</span></div>
-        <div class="widget"><span class="w-label">Public</span><span class="w-val" id="an-public">0</span></div>
-        <div class="widget"><span class="w-label">Favorites</span><span class="w-val" id="an-favorites">0</span></div>
+        <div class="widget"><span class="w-label" data-i18n>Files</span><span class="w-val" id="an-files">0</span></div>
+        <div class="widget"><span class="w-label" data-i18n>Public</span><span class="w-val" id="an-public">0</span></div>
+        <div class="widget"><span class="w-label" data-i18n>Favorites</span><span class="w-val" id="an-favorites">0</span></div>
       </section>
 
       <section class="content-split analytics-split">
         <div class="chart-card">
-          <h3>By file type</h3>
+          <h3 data-i18n>By file type</h3>
           <div class="bar-chart" id="an-type-chart"></div>
         </div>
         <div class="chart-card">
-          <h3>Visibility</h3>
+          <h3 data-i18n>Visibility</h3>
           <div class="split-chart" id="an-visibility-chart"></div>
         </div>
       </section>
@@ -225,20 +225,32 @@
     <!-- Settings View -->
     <div class="dashboard-scroll view" id="view-settings" hidden>
       <div class="view-head">
-        <h2>Settings</h2>
-        <p>Manage your account and app preferences.</p>
+        <h2 data-i18n>Settings</h2>
+        <p data-i18n>Manage your account and app preferences.</p>
       </div>
       <section class="settings-section">
         <div class="settings-card">
           <div class="settings-row">
             <div>
-              <h3>Theme</h3>
-              <p>Luxury Crimson (Default)</p>
+              <h3 data-i18n>Theme</h3>
+              <p data-i18n>Luxury Crimson (Default)</p>
             </div>
           </div>
           <div class="settings-row">
             <div>
-              <h3>File Limit</h3>
+              <h3 data-i18n>Language</h3>
+              <select id="lang-selector" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 6px; outline: none; margin-top: 5px;">
+                <option value="en">English</option>
+                <option value="ru">Русский</option>
+                <option value="uz">O'zbek</option>
+                <option value="ko">한국어</option>
+                <option value="zh">中文</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <h3 data-i18n>File Limit</h3>
               <p id="settings-file-limit">100 GB</p>
             </div>
           </div>
@@ -258,31 +270,31 @@
     <div class="dp-media-preview" id="dp-media-preview" hidden></div>
     
     <div class="dp-body">
-      <div class="dp-row"><span>SHA-256</span> <span id="dp-hash">...</span></div>
-      <div class="dp-row"><span>Storage</span> <span>Cloudflare R2</span></div>
-      <div class="dp-row"><span>Downloads</span> <span id="dp-downloads">0</span></div>
-      <div class="dp-row"><span>Visibility</span> <span id="dp-visibility">Private</span></div>
-      <div class="dp-row"><span>Created</span> <span id="dp-created">Today</span></div>
+      <div class="dp-row"><span data-i18n>SHA-256</span> <span id="dp-hash">...</span></div>
+      <div class="dp-row"><span data-i18n>Storage</span> <span>Cloudflare R2</span></div>
+      <div class="dp-row"><span data-i18n>Downloads</span> <span id="dp-downloads">0</span></div>
+      <div class="dp-row"><span data-i18n>Visibility</span> <span id="dp-visibility" data-i18n>Private</span></div>
+      <div class="dp-row"><span data-i18n>Created</span> <span id="dp-created" data-i18n>Today</span></div>
     </div>
     
     <div class="dp-actions">
-      <button class="dp-btn"><span class="dp-icon">⬇</span> Download</button>
-      <button class="dp-btn"><span class="dp-icon">🔗</span> Share</button>
-      <button class="dp-btn" id="dp-btn-move"><span class="dp-icon">📂</span> Move to...</button>
-      <button class="dp-btn"><span class="dp-icon">✏</span> Rename</button>
-      <button class="dp-btn" id="dp-btn-visibility"><span class="dp-icon">🌍</span> Make Public</button>
-      <button class="dp-btn dp-danger"><span class="dp-icon">🗑</span> Delete</button>
+      <button class="dp-btn"><span class="dp-icon">⬇</span> <span data-i18n>Download</span></button>
+      <button class="dp-btn"><span class="dp-icon">🔗</span> <span data-i18n>Share</span></button>
+      <button class="dp-btn" id="dp-btn-move"><span class="dp-icon">📂</span> <span data-i18n>Move to...</span></button>
+      <button class="dp-btn"><span class="dp-icon">✏</span> <span data-i18n>Rename</span></button>
+      <button class="dp-btn" id="dp-btn-visibility"><span class="dp-icon">🌍</span> <span data-i18n>Make Public</span></button>
+      <button class="dp-btn dp-danger"><span class="dp-icon">🗑</span> <span data-i18n>Delete</span></button>
     </div>
   </aside>
 
   <!-- Move to Folder Modal -->
   <div class="cmd-palette-overlay" id="folder-modal" hidden>
     <div class="cmd-palette" style="max-width:400px; padding:20px; display:flex; flex-direction:column; gap:16px;">
-      <h3 style="font-family:'Space Grotesk',sans-serif; font-size:18px;">Move to Folder</h3>
+      <h3 style="font-family:'Space Grotesk',sans-serif; font-size:18px;" data-i18n>Move to Folder</h3>
       <div id="folder-modal-list" style="display:flex; flex-direction:column; gap:8px; max-height:300px; overflow-y:auto;">
         <!-- Populated by JS -->
       </div>
-      <button id="btn-close-folder-modal" style="padding:10px; background:rgba(255,255,255,0.1); border-radius:6px; margin-top:8px;">Cancel</button>
+      <button id="btn-close-folder-modal" style="padding:10px; background:rgba(255,255,255,0.1); border-radius:6px; margin-top:8px;" data-i18n>Cancel</button>
     </div>
   </div>
 

@@ -73,18 +73,19 @@ def get_language_keyboard():
 
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
-def get_main_reply_keyboard(is_admin: bool = False):
+def get_main_reply_keyboard(is_admin: bool = False, lang: str = "en"):
+    from app.clients.telegram.i18n import t
     builder = ReplyKeyboardBuilder()
     
     # ROW 1
-    builder.button(text="📁 My Files")
-    builder.button(text="☁ Storage Stats")
+    builder.button(text=t("📁 My Files", lang))
+    builder.button(text=t("☁ Storage Stats", lang))
     
     # ROW 2
-    builder.button(text="⚙ Settings")
+    builder.button(text=t("⚙ Settings", lang))
     
     if is_admin:
-        builder.button(text="🛡 Admin Menu")
+        builder.button(text=t("🛡 Admin Menu", lang))
         builder.adjust(2, 2)
     else:
         builder.adjust(2, 1)

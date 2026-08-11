@@ -90,6 +90,15 @@ const I18N = {
 window.t = (text) => I18N.t(text);
 
 // Auto-initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  I18N.init();
+document.addEventListener('DOMContentLoaded', async () => {
+  await I18N.init();
+  
+  // Bind language selector if it exists
+  const langSelector = document.getElementById('lang-selector');
+  if (langSelector) {
+    langSelector.value = I18N.currentLanguage;
+    langSelector.addEventListener('change', (e) => {
+      I18N.setLanguage(e.target.value);
+    });
+  }
 });

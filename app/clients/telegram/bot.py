@@ -8,7 +8,7 @@ from app.services.share_service import share_service
 from app.repositories.r2.upload import upload_file_to_r2
 from app.domain.entities.file import FileMetadata
 from app.repositories.mongodb.file_repository import file_repository
-from app.clients.telegram.i18n import t
+from app.clients.telegram.i18n import t, get_all_translations
 
 bot = Bot(token=settings.bot_token)
 dp = Dispatcher()
@@ -48,7 +48,7 @@ async def send_welcome_message(chat_id: int, lang: str):
     )
     
     await bot.send_message(chat_id, welcome_text, parse_mode="HTML")
-    await bot.send_message(chat_id, t("Menu updated 👇", lang), reply_markup=get_main_reply_keyboard(is_admin))
+    await bot.send_message(chat_id, t("Menu updated 👇", lang), reply_markup=get_main_reply_keyboard(is_admin, lang))
 
 from app.clients.telegram.keyboards import LanguageAction
 @dp.callback_query(LanguageAction.filter())
@@ -63,7 +63,7 @@ async def handle_language_selection(callback_query: types.CallbackQuery, callbac
 
 
 @dp.message(Command("admin"))
-@dp.message(F.text == "🛡 Admin Menu")
+@dp.message(F.text.in_(get_all_translations("🛡 Admin Menu")))
 async def handle_admin_menu(message: types.Message):
     if message.from_user.id != settings.admin:
         return
@@ -156,7 +156,7 @@ async def command_setlimit_handler(message: types.Message):
     await message.answer(f"✅ Global file size limit set to <b>{limit_mb}MB</b>.", parse_mode="HTML")
 
 @dp.message(Command("settings"))
-@dp.message(F.text == "⚙ Settings")
+@dp.message(F.text.in_(get_all_translations("⚙ Settings")))
 async def command_settings_handler(message: types.Message):
     from app.repositories.mongodb.user_repository import user_repository
     user = await user_repository.get_by_telegram_id(message.from_user.id)
@@ -341,7 +341,7 @@ def get_inline_result(file_meta):
         ])
     )
 
-@dp.message(F.text == "📁 My Files")
+@dp.message(F.text.in_(get_all_translations("📁 My Files")))
 async def handle_my_files(message: types.Message):
     files = await file_repository.get_by_owner_id(message.from_user.id, limit=50)
     if not files:
@@ -360,7 +360,7 @@ async def handle_my_files(message: types.Message):
     builder.adjust(1)
     await message.answer(f"📁 <b>Your Files</b> ({len(files)} total):", parse_mode="HTML", reply_markup=builder.as_markup())
 
-@dp.message(F.text == "☁ Storage Stats")
+@dp.message(F.text.in_(get_all_translations("☁ Storage Stats")))
 async def handle_storage_stats(message: types.Message):
     stats = await file_repository.get_user_stats(message.from_user.id)
     await message.answer(f"☁ <b>Storage Used:</b> {stats.get('total_size', 0) / (1024*1024):.2f} MB\n📁 <b>Total Files:</b> {stats.get('total_files', 0)}", parse_mode="HTML")

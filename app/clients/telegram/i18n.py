@@ -34,3 +34,16 @@ def t(text: str, lang: str = "en") -> str:
         
     lang_dict = _translations.get(lang, {})
     return lang_dict.get(text, text)
+
+def get_all_translations(text: str) -> list[str]:
+    """Returns a list of all translations for a given string to be used with F.text.in_()"""
+    res = [text]
+    for lang in ["ru", "uz", "ko", "zh"]:
+        if lang not in _translations:
+            load_translations(lang)
+        lang_dict = _translations.get(lang, {})
+        translated = lang_dict.get(text, text)
+        if translated not in res:
+            res.append(translated)
+    return res
+
