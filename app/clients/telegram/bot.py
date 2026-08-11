@@ -8,6 +8,7 @@ from app.services.share_service import share_service
 from app.repositories.r2.upload import upload_file_to_r2
 from app.domain.entities.file import FileMetadata
 from app.repositories.mongodb.file_repository import file_repository
+from app.clients.telegram.i18n import t
 
 bot = Bot(token=settings.bot_token)
 dp = Dispatcher()
@@ -16,23 +17,50 @@ dp = Dispatcher()
 async def command_start_handler(message: types.Message) -> None:
     from app.domain.entities.user import User
     from app.repositories.mongodb.user_repository import user_repository
-    await user_repository.upsert_user(User(
-        telegram_id=message.from_user.id,
-        username=message.from_user.username,
-        first_name=message.from_user.first_name,
-        last_name=message.from_user.last_name
-    ))
+    user = await user_repository.get_by_telegram_id(message.from_user.id)
+    if not user:
+        user = await user_repository.upsert_user(User(
+            telegram_id=message.from_user.id,
+            username=message.from_user.username,
+            first_name=message.from_user.first_name,
+            last_name=message.from_user.last_name
+        ))
+        
+    if not user.language:
+        from app.clients.telegram.keyboards import get_language_keyboard
+        await message.answer(
+            "Please choose your language / Пожалуйста, выберите язык:",
+            reply_markup=get_language_keyboard()
+        )
+        return
 
+    await send_welcome_message(message.from_user.id, user.language)
+
+async def send_welcome_message(chat_id: int, lang: str):
     from app.clients.telegram.keyboards import get_main_reply_keyboard
-    is_admin = (message.from_user.id == settings.admin)
-    await message.answer(
-        "👋 <b>Welcome to Hunterstar UX 2.0!</b>\n\n"
-        "Here is how to use the new features:\n\n"
-        "📤 <b>Send me any file</b> (photo, video, document) and I will upload it to Cloudflare R2. You will immediately see the new <b>4-Row Matrix Buttons</b> (Download, Share, Make Public, Delete) attached to the file!\n\n"
-        "📁 <b>Use the Menu Below</b> to view your files, check Storage Stats, or manage your settings!",
-        parse_mode="HTML"
+    is_admin = (chat_id == settings.admin)
+    
+    welcome_text = (
+        f"👋 <b>{t('Welcome to Hunterstar UX 2.0!', lang)}</b>\n\n"
+        f"{t('Here is how to use the new features:', lang)}\n\n"
+        f"📤 <b>{t('Send me any file', lang)}</b> {t('(photo, video, document) and I will upload it to Cloudflare R2. You will immediately see the new', lang)} <b>{t('4-Row Matrix Buttons', lang)}</b> {t('(Download, Share, Make Public, Delete) attached to the file!', lang)}\n\n"
+        f"📁 <b>{t('Use the Menu Below', lang)}</b> {t('to view your files, check Storage Stats, or manage your settings!', lang)}"
     )
-    await message.answer("Menu updated 👇", reply_markup=get_main_reply_keyboard(is_admin))
+    
+    await bot.send_message(chat_id, welcome_text, parse_mode="HTML")
+    await bot.send_message(chat_id, t("Menu updated 👇", lang), reply_markup=get_main_reply_keyboard(is_admin))
+
+from app.clients.telegram.keyboards import LanguageAction
+@dp.callback_query(LanguageAction.filter())
+async def handle_language_selection(callback_query: types.CallbackQuery, callback_data: LanguageAction):
+    from app.repositories.mongodb.user_repository import user_repository
+    
+    lang = callback_data.code
+    await user_repository.set_language(callback_query.from_user.id, lang)
+    
+    await callback_query.message.delete()
+    await send_welcome_message(callback_query.from_user.id, lang)
+
 
 @dp.message(Command("admin"))
 @dp.message(F.text == "🛡 Admin Menu")

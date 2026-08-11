@@ -58,6 +58,19 @@ def get_more_menu_keyboard(share_id: str):
     builder.adjust(2, 2, 2, 2, 1, 1)
     return builder.as_markup()
 
+class LanguageAction(CallbackData, prefix="lang"):
+    code: str
+
+def get_language_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🇬🇧 English", callback_data=LanguageAction(code="en"))
+    builder.button(text="🇷🇺 Русский", callback_data=LanguageAction(code="ru"))
+    builder.button(text="🇺🇿 O'zbek", callback_data=LanguageAction(code="uz"))
+    builder.button(text="🇰🇷 한국어", callback_data=LanguageAction(code="ko"))
+    builder.button(text="🇨🇳 中文", callback_data=LanguageAction(code="zh"))
+    builder.adjust(2, 2, 1)
+    return builder.as_markup()
+
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 def get_main_reply_keyboard(is_admin: bool = False):

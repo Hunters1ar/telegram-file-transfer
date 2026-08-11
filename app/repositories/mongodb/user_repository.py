@@ -15,17 +15,19 @@ class UserRepository:
         await self.collection.create_indexes(indexes)
 
     async def upsert_user(self, user: User) -> User:
+        update_data = {
+            "telegram_id": user.telegram_id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+        }
+        if user.language:
+            update_data["language"] = user.language
+
         await self.collection.update_one(
             {"telegram_id": user.telegram_id},
             {
-                # Always update identity fields (name/username can change)
-                "$set": {
-                    "telegram_id": user.telegram_id,
-                    "username": user.username,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                },
-                # Only set these fields when the document is first created
+                "$set": update_data,
                 "$setOnInsert": {
                     "show_others_files": True,
                     "created_at": user.created_at,
@@ -56,5 +58,11 @@ class UserRepository:
             )
             return new_value
         return True
+
+    async def set_language(self, telegram_id: int, language: str):
+        await self.collection.update_one(
+            {"telegram_id": telegram_id},
+            {"$set": {"language": language}}
+        )
 
 user_repository = UserRepository()
