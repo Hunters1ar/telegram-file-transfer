@@ -33,6 +33,6 @@ def format_file_caption(file_meta: FileMetadata, lang: str = "en") -> str:
     return (
         f"{emoji} <b>{file_meta.original_filename}</b>\n"
         f"🆔 <code>{file_meta.share_id}</code>  •  📦 {size_mb:.2f} MB\n"
-        f"{visibility}  •  ☁ Hunterstar Cloud"
+        f"{visibility}"
     )
 

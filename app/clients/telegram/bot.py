@@ -41,10 +41,10 @@ async def send_welcome_message(chat_id: int, lang: str):
     is_admin = (chat_id == settings.admin)
     
     welcome_text = (
-        f"👋 <b>{t('Welcome to Hunterstar UX 2.0!', lang)}</b>\n\n"
-        f"{t('Here is how to use the new features:', lang)}\n\n"
-        f"📤 <b>{t('Send me any file', lang)}</b> {t('(photo, video, document) and I will upload it to Cloudflare R2. You will immediately see the new', lang)} <b>{t('4-Row Matrix Buttons', lang)}</b> {t('(Download, Share, Make Public, Delete) attached to the file!', lang)}\n\n"
-        f"📁 <b>{t('Use the Menu Below', lang)}</b> {t('to view your files, check Storage Stats, or manage your settings!', lang)}"
+        f"🛰️ <b>{t('Hunterstar File Transfer', lang)}</b>\n\n"
+        f"{t('Your files are ready to move.', lang)}\n\n"
+        f"{t('Send a file, manage your collection, or create a shareable link.', lang)}\n\n"
+        f"<i>{t('No noise. Just your files.', lang)}</i>"
     )
     
     await bot.send_message(chat_id, welcome_text, parse_mode="HTML")
@@ -161,28 +161,45 @@ async def command_settings_handler(message: types.Message):
     from app.repositories.mongodb.user_repository import user_repository
     user = await user_repository.get_by_telegram_id(message.from_user.id)
     show_others = getattr(user, 'show_others_files', True) if user else True
+    lang = user.language if user and user.language else "en"
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
-    text = "See others files (✅)" if show_others else "See others files (❌)"
+    text = f"{t('See others files', lang)} (✅)" if show_others else f"{t('See others files', lang)} (❌)"
     builder.button(text=text, callback_data="toggle_show_others")
+    builder.button(text=f"🌐 {t('Change Language', lang)}", callback_data="change_language")
     builder.adjust(1)
     
-    await message.answer("<b>Settings</b>\n\nManage your file visibility preferences below.", parse_mode="HTML", reply_markup=builder.as_markup())
+    await message.answer(f"<b>{t('Settings', lang)}</b>\n\n{t('Manage your preferences below.', lang)}", parse_mode="HTML", reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data == "change_language")
+async def handle_change_language_cb(callback: types.CallbackQuery):
+    from app.clients.telegram.keyboards import get_language_keyboard
+    from app.repositories.mongodb.user_repository import user_repository
+    user = await user_repository.get_by_telegram_id(callback.from_user.id)
+    lang = user.language if user and user.language else "en"
+    await callback.message.edit_text(
+        t("Please choose your language / Пожалуйста, выберите язык:", lang),
+        reply_markup=get_language_keyboard()
+    )
+    await callback.answer()
 
 @dp.callback_query(F.data == "toggle_show_others")
 async def handle_toggle_show_others_cb(callback: types.CallbackQuery):
     from app.repositories.mongodb.user_repository import user_repository
     new_value = await user_repository.toggle_show_others_files(callback.from_user.id)
+    user = await user_repository.get_by_telegram_id(callback.from_user.id)
+    lang = user.language if user and user.language else "en"
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
-    text = "See others files (✅)" if new_value else "See others files (❌)"
+    text = f"{t('See others files', lang)} (✅)" if new_value else f"{t('See others files', lang)} (❌)"
     builder.button(text=text, callback_data="toggle_show_others")
+    builder.button(text=f"🌐 {t('Change Language', lang)}", callback_data="change_language")
     builder.adjust(1)
     
     await callback.message.edit_reply_markup(reply_markup=builder.as_markup())
-    await callback.answer(f"Setting updated to {'Enabled' if new_value else 'Disabled'}!")
+    await callback.answer(t("Setting updated!", lang))
 
 @dp.message(Command("clearwhole"))
 async def command_clearwhole_handler(message: types.Message) -> None:
@@ -322,7 +339,6 @@ def get_inline_result(file_meta):
         f"🆔 <code>{file_meta.share_id}</code>\n"
         f"📦 {size_mb} MB\n"
         f"👤 {visibility}\n"
-        f"☁ Hunterstar Cloud\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"Download securely below."
     )
@@ -343,9 +359,13 @@ def get_inline_result(file_meta):
 
 @dp.message(F.text.in_(get_all_translations("📁 My Files")))
 async def handle_my_files(message: types.Message):
+    from app.repositories.mongodb.user_repository import user_repository
+    user = await user_repository.get_by_telegram_id(message.from_user.id)
+    lang = user.language if user and user.language else "en"
+
     files = await file_repository.get_by_owner_id(message.from_user.id, limit=50)
     if not files:
-        await message.answer("📁 You have no files yet.\n\nSend me any file to get started!")
+        await message.answer(t("📁 You have no files yet.\n\nSend me any file to get started!", lang))
         return
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -358,12 +378,16 @@ async def handle_my_files(message: types.Message):
             callback_data=FileAction(action="back_to_main", share_id=f.share_id)
         )
     builder.adjust(1)
-    await message.answer(f"📁 <b>Your Files</b> ({len(files)} total):", parse_mode="HTML", reply_markup=builder.as_markup())
+    await message.answer(f"📁 <b>{t('Your Files', lang)}</b> ({len(files)} {t('total', lang)}):", parse_mode="HTML", reply_markup=builder.as_markup())
 
 @dp.message(F.text.in_(get_all_translations("☁ Storage Stats")))
 async def handle_storage_stats(message: types.Message):
+    from app.repositories.mongodb.user_repository import user_repository
+    user = await user_repository.get_by_telegram_id(message.from_user.id)
+    lang = user.language if user and user.language else "en"
+
     stats = await file_repository.get_user_stats(message.from_user.id)
-    await message.answer(f"☁ <b>Storage Used:</b> {stats.get('total_size', 0) / (1024*1024):.2f} MB\n📁 <b>Total Files:</b> {stats.get('total_files', 0)}", parse_mode="HTML")
+    await message.answer(f"☁ <b>{t('Storage Used', lang)}:</b> {stats.get('total_size', 0) / (1024*1024):.2f} MB\n📁 <b>{t('Total Files', lang)}:</b> {stats.get('total_files', 0)}", parse_mode="HTML")
 
 
 
@@ -520,7 +544,7 @@ async def handle_confirm_delete(callback: types.CallbackQuery, callback_data: Fi
 
 @dp.callback_query(FileAction.filter(F.action.in_({"rename", "move", "analytics", "details", "copy_id", "copy_link", "expire", "password"})))
 async def handle_coming_soon(callback: types.CallbackQuery):
-    await callback.answer("This feature is coming soon in Hunterstar Cloud Phase 2!", show_alert=True)
+    await callback.answer("This feature is coming soon!", show_alert=True)
 
 
 async def setup_bot_commands(bot_instance: Bot):

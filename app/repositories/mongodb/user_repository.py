@@ -4,6 +4,9 @@ from app.repositories.mongodb.mongo import db_instance
 from app.domain.entities.user import User
 
 class UserRepository:
+    def __init__(self):
+        self._cache = {}
+
     @property
     def collection(self):
         return db_instance.db["users"]
@@ -35,12 +38,18 @@ class UserRepository:
             },
             upsert=True
         )
+        self._cache[user.telegram_id] = user
         return user
 
     async def get_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+        if telegram_id in self._cache:
+            return self._cache[telegram_id]
+            
         doc = await self.collection.find_one({"telegram_id": telegram_id})
         if doc:
-            return User(**doc)
+            user = User(**doc)
+            self._cache[telegram_id] = user
+            return user
         return None
 
     async def get_all_users(self) -> list[User]:
@@ -56,6 +65,8 @@ class UserRepository:
                 {"telegram_id": telegram_id},
                 {"$set": {"show_others_files": new_value}}
             )
+            user.show_others_files = new_value
+            self._cache[telegram_id] = user
             return new_value
         return True
 
@@ -64,5 +75,7 @@ class UserRepository:
             {"telegram_id": telegram_id},
             {"$set": {"language": language}}
         )
+        if telegram_id in self._cache:
+            self._cache[telegram_id].language = language
 
 user_repository = UserRepository()
