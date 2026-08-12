@@ -1159,8 +1159,18 @@ if (mainSearchInput) {
 }
 
 document.getElementById('header-lang-btn')?.addEventListener('click', () => {
-  showView('settings');
-  setTimeout(() => document.getElementById('lang-select')?.focus(), 50);
+  if (window.I18N) {
+    const langs = I18N.supportedLanguages;
+    const current = I18N.currentLanguage;
+    let nextIndex = (langs.indexOf(current) + 1) % langs.length;
+    I18N.setLanguage(langs[nextIndex]);
+    
+    // Also update the select dropdown in settings if it exists
+    const langSelect = document.getElementById('lang-selector');
+    if (langSelect) {
+      langSelect.value = langs[nextIndex];
+    }
+  }
 });
 
 /* ===== MOBILE & SIDEBAR NAV ROUTING ===== */

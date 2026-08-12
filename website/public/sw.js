@@ -1,9 +1,6 @@
-const CACHE_NAME = 'hunterstar-v2.6';
+const CACHE_NAME = 'hunterstar-v2.5';
 const ASSETS_TO_CACHE = [
   './',
-  './index.html',
-  './style.css',
-  './script.js',
   './icon.png',
   './icons/trash-icon.webp',
   './icons/favourite-icon.webp',
@@ -76,7 +73,7 @@ self.addEventListener('fetch', (event) => {
       });
     }).catch(() => {
       // Offline fallback
-      return caches.match('./index.html');
+      return caches.match('./');
     })
   );
 });

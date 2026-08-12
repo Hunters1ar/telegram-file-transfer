@@ -29,3 +29,7 @@ htmlcov/
 .vscode/
 .idea/
 .vercel
+
+website/node_modules/
+website/.next/
+website/out/

@@ -16,7 +16,6 @@ def get_file_card_keyboard(file_meta: FileMetadata):
     
     # ROW 2
     builder.button(text="🔗 Share", switch_inline_query=file_meta.share_id)
-    builder.button(text="🌍 Website", web_app=types.WebAppInfo(url=f"https://api.hunterstar.online/app/?f={file_meta.share_id}"))
     
     # ROW 3
     fav_text = "⭐ Unfavorite" if file_meta.is_favorite else "⭐ Favorite"
@@ -74,9 +73,7 @@ def get_main_reply_keyboard(is_admin: bool = False, lang: str = "en"):
     from app.clients.telegram.i18n import t
     builder = ReplyKeyboardBuilder()
     
-    builder.button(text=t("📤 Send File", lang))
     builder.button(text=t("📁 My Files", lang))
-    builder.button(text=t("🔗 My Links", lang))
     builder.button(text=t("📊 Storage", lang))
     builder.button(text=t("⚙️ Settings", lang))
     

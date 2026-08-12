@@ -71,7 +71,7 @@ async def telegram_webhook(update: dict):
     return {"status": "ok"}
 
 # Serve the website frontend at /app/
-WEBSITE_DIR = os.path.join(os.path.dirname(__file__), "website")
+WEBSITE_DIR = os.path.join(os.path.dirname(__file__), "website", "out")
 
 NO_CACHE_HEADERS = {
     "Cache-Control": "no-cache, no-store, must-revalidate",
