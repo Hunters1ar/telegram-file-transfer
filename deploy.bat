@@ -1,174 +1,307 @@
+
 @echo off
-setlocal EnableDelayedExpansion
+setlocal EnableExtensions EnableDelayedExpansion
+
+rem ============================================================
+rem HUNTERSTAR DEPLOY SCRIPT
+rem Usage:
+rem   deploy.bat
+rem   deploy.bat --force
+rem ============================================================
+
+set "FORCE=0"
+if /I "%~1"=="--force" set "FORCE=1"
+
+set "REMOTE_HOST=root@134.209.75.49"
+set "REMOTE_DIR=/root/telegram-file-transfer"
 
 echo.
+echo ============================================================
+echo                  HUNTERSTAR DEPLOY
+echo ============================================================
+echo.
+
+rem ============================================================
+rem [0/6] PRE-FLIGHT CHECKS
+rem ============================================================
+
 echo [0/6] Pre-flight checks...
+echo.
 
-rem Ensure required tools are available
-where ssh >nul 2>&1 || (
-    echo ERROR: `ssh` not found in PATH. Install OpenSSH client.
-    exit /b 1
-)
-where npm >nul 2>&1 || (
-    echo ERROR: `npm` not found in PATH. Install Node.js/npm.
+where ssh >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: ssh not found in PATH.
+    echo Install/enable the Windows OpenSSH Client.
     exit /b 1
 )
 
-rem Ensure git working tree is clean to avoid accidental commits/pushes
-rem You can skip this check by setting SKIP_GIT_CHECK=1 in environment or passing --force
-if "%1"=="--force" (
-    set SKIP_GIT_CHECK=1
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: npm not found in PATH.
+    echo Install Node.js/npm.
+    exit /b 1
 )
-if not defined SKIP_GIT_CHECK (
-    set GIT_DIRTY=
-    for /f "usebackq delims=" %%s in (`git status --porcelain`) do (
-        set GIT_DIRTY=1
-        set "LINE=%%s"
-        setlocal enabledelayedexpansion
-        set "FILE=!LINE:~3!"
-        endlocal & call :append_changed "%%~s"
-    )
-    if defined GIT_DIRTY (
-        rem If only safe files changed, auto-commit them
-        call :check_and_autocommit
-        if errorlevel 1 (
-            echo ERROR: Git working tree is not clean. Commit or stash changes before running this deploy script.
-            echo To bypass this check (unsafe), run: deploy.bat --force
-            git status --porcelain
+
+where git >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: git not found in PATH.
+    exit /b 1
+)
+
+where vercel >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: Vercel CLI not found in PATH.
+    echo Install it with:
+    echo npm install -g vercel
+    exit /b 1
+)
+
+rem ============================================================
+rem GIT CLEAN CHECK
+rem ============================================================
+
+if "%FORCE%"=="0" (
+    echo Checking Git working tree...
+
+    git status --porcelain > "%TEMP%\hunterstar_git_status.txt"
+
+    for %%A in ("%TEMP%\hunterstar_git_status.txt") do (
+        if %%~zA GTR 0 (
+            echo.
+            echo ERROR: Git working tree is not clean.
+            echo.
+            git status --short
+            echo.
+            echo Commit/stash your changes first.
+            echo Or bypass this check with:
+            echo.
+            echo     deploy.bat --force
+            echo.
+            del "%TEMP%\hunterstar_git_status.txt" >nul 2>&1
             exit /b 1
         )
     )
+
+    del "%TEMP%\hunterstar_git_status.txt" >nul 2>&1
 ) else (
-    echo Warning: SKIP_GIT_CHECK is set; continuing despite uncommitted changes.
+    echo WARNING: --force enabled.
+    echo Skipping Git clean check.
 )
-
-rem helper to accumulate changed files
-:append_changed
-setlocal EnableDelayedExpansion
-set "LINE=%~1"
-set "FILE=!LINE:~3!"
->>"%TEMP%\deploy_changed_files.txt" echo !FILE!
-endlocal
-exit /b 0
-
-:check_and_autocommit
-rem Define whitelist of safe files (space-separated)
-set SAFE_LIST=deploy.bat website\package.json app\repositories\mongodb\mongo.py
-if not exist "%TEMP%\deploy_changed_files.txt" exit /b 1
-set BAD=0
-for /f "usebackq delims=" %%f in ("%TEMP%\deploy_changed_files.txt") do (
-    set "FOUND=0"
-    for %%s in (%SAFE_LIST%) do if /I "%%~f"=="%%~s" set FOUND=1
-    if "%%~f"=="" set FOUND=1
-    if %%FOUND%%==0 set BAD=1
-)
-if %BAD%==1 exit /b 1
-rem All changed files are safe; commit them automatically
-for /f "usebackq delims=" %%f in ("%TEMP%\deploy_changed_files.txt") do (
-    git add "%%~f"
-)
-git commit -m "Auto-commit: safe changes before deploy" || exit /b 1
-del "%TEMP%\deploy_changed_files.txt" >nul 2>&1
-exit /b 0
 
 echo.
-echo [1/6] Building website locally...
+echo [0/6] Pre-flight checks passed.
+echo.
 
-cd website
+rem ============================================================
+rem [1/6] BUILD WEBSITE
+rem ============================================================
+
+echo [1/6] Building website locally...
+echo.
+
+if not exist "website" (
+    echo ERROR: website directory not found.
+    exit /b 1
+)
+
+pushd website
+if errorlevel 1 (
+    echo ERROR: Failed to enter website directory.
+    exit /b 1
+)
+
 echo Installing dependencies...
 call npm ci
+if errorlevel 1 (
+    echo ERROR: npm ci failed.
+    popd
+    exit /b 1
+)
 
+echo.
 echo Building website...
 call npm run build
-
 if errorlevel 1 (
     echo ERROR: Website build failed.
+    popd
     exit /b 1
 )
 
-if not exist out\index.html (
-    echo ERROR: Build did not produce out\index.html
+if not exist "out\index.html" (
+    echo ERROR: Build completed but out\index.html was not found.
+    popd
     exit /b 1
 )
 
-cd ..
+popd
 
 echo.
-echo [2/6] Preparing git push (no auto-commit)...
+echo Website build successful.
+echo.
 
-rem At this point the working tree must be clean. Determine current branch.
-for /f "delims=" %%b in ('git rev-parse --abbrev-ref HEAD') do set BRANCH=%%b
-echo Current branch: %BRANCH%
+rem ============================================================
+rem [2/6] PREPARE GIT
+rem ============================================================
 
-git config --local credential.username Hunters1ar >nul 2>&1 || echo "Warning: git config failed"
+echo [2/6] Preparing Git push...
+echo.
+
+for /f "delims=" %%B in ('git rev-parse --abbrev-ref HEAD') do (
+    set "BRANCH=%%B"
+)
+
+if not defined BRANCH (
+    echo ERROR: Could not determine current Git branch.
+    exit /b 1
+)
+
+echo Current branch: !BRANCH!
+
+git config --local credential.username Hunters1ar >nul 2>&1
 
 echo.
-echo [3/6] Pushing changes to remote (%BRANCH%)...
 
-git push origin %BRANCH% || (
-    echo ERROR: Git push failed. You may need to resolve remote issues interactively.
+rem ============================================================
+rem [3/6] PUSH TO GITHUB
+rem ============================================================
+
+echo [3/6] Pushing changes to remote...
+echo.
+
+git push origin "!BRANCH!"
+if errorlevel 1 (
+    echo.
+    echo ERROR: Git push failed.
+    echo Check your Git credentials, remote, and network connection.
     exit /b 1
 )
 
 echo.
-echo [4/6] Deploying website to Vercel (recommended for UI hosting)...
+echo Git push successful.
+echo.
 
-cd website
-where vercel >nul 2>&1 || (
-    echo ERROR: Vercel CLI not found. Install with `npm i -g vercel` or set PATH.
-    exit /b 1
-)
+rem ============================================================
+rem [4/6] DEPLOY WEBSITE TO VERCEL
+rem ============================================================
+
+echo [4/6] Deploying website to Vercel...
+echo.
 
 if defined VERCEL_TOKEN (
-    echo Using non-interactive Vercel deploy (token provided).
-    vercel --prod --token %VERCEL_TOKEN% --confirm || (
-        echo ERROR: Vercel deploy failed.
+    echo Using VERCEL_TOKEN for non-interactive deployment...
+
+    vercel --prod --token "!VERCEL_TOKEN!" --confirm
+
+    if errorlevel 1 (
+        echo ERROR: Vercel deployment failed.
         exit /b 1
     )
 ) else (
-    echo VERCEL_TOKEN not set. Running interactive vercel deploy (may prompt for login).
-    vercel --prod --confirm || (
-        echo ERROR: Vercel deploy failed.
+    echo VERCEL_TOKEN is not set.
+    echo Running interactive Vercel deployment...
+
+    vercel --prod --confirm
+
+    if errorlevel 1 (
+        echo ERROR: Vercel deployment failed.
         exit /b 1
     )
 )
-cd ..
 
 echo.
-echo [5/6] Uploading SSH public key (if available) and updating backend on VPS...
+echo Vercel deployment successful.
+echo.
 
-set REMOTE_HOST=root@134.209.75.49
+rem ============================================================
+rem [5/6] UPDATE VPS
+rem ============================================================
 
-rem determine public key file to upload
-if exist .ssh\deploy_id_rsa.pub (
-    set PUBKEY=.ssh\deploy_id_rsa.pub
-) else if exist %USERPROFILE%\.ssh\id_rsa.pub (
-    set PUBKEY=%USERPROFILE%\.ssh\id_rsa.pub
-) else (
-    set PUBKEY=
+echo [5/6] Updating backend on VPS...
+echo.
+echo Remote server: %REMOTE_HOST%
+echo Remote directory: %REMOTE_DIR%
+echo.
+
+rem ------------------------------------------------------------
+rem Find SSH public key
+rem ------------------------------------------------------------
+
+set "PUBKEY="
+
+if exist ".ssh\deploy_id_rsa.pub" (
+    set "PUBKEY=.ssh\deploy_id_rsa.pub"
+) else if exist "%USERPROFILE%\.ssh\id_rsa.pub" (
+    set "PUBKEY=%USERPROFILE%\.ssh\id_rsa.pub"
+) else if exist "%USERPROFILE%\.ssh\id_ed25519.pub" (
+    set "PUBKEY=%USERPROFILE%\.ssh\id_ed25519.pub"
 )
 
 if defined PUBKEY (
-    echo Found public key at %PUBKEY%. Uploading to %REMOTE_HOST%...
-    for %%F in ("%PUBKEY%") do set PUBNAME=%%~nxF
-    scp "%PUBKEY%" %REMOTE_HOST%:/root/!PUBNAME! || (
-        echo Warning: scp failed. You may need to provide password or set up key auth manually.
+    echo Found SSH public key:
+    echo !PUBKEY!
+    echo.
+
+    for %%F in ("!PUBKEY!") do (
+        set "PUBNAME=%%~nxF"
     )
-    echo Appending key on remote and cleaning up...
-    ssh %REMOTE_HOST% "mkdir -p ~/.ssh && cat /root/!PUBNAME! >> ~/.ssh/authorized_keys && rm -f /root/!PUBNAME! && chmod 600 ~/.ssh/authorized_keys" || (
-        echo Warning: remote key append may have failed.
+
+    echo Uploading SSH public key...
+
+    scp "!PUBKEY!" "%REMOTE_HOST%:/root/!PUBNAME!"
+
+    if errorlevel 1 (
+        echo WARNING: Failed to upload SSH public key.
+        echo Continuing with existing SSH authentication...
+    ) else (
+        echo SSH key uploaded.
+        echo Adding key to authorized_keys...
+
+        ssh "%REMOTE_HOST%" "mkdir -p ~/.ssh && touch ~/.ssh/authorized_keys && grep -qxF -f /root/!PUBNAME! ~/.ssh/authorized_keys || cat /root/!PUBNAME! >> ~/.ssh/authorized_keys && rm -f /root/!PUBNAME! && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
+
+        if errorlevel 1 (
+            echo WARNING: Failed to update authorized_keys.
+        ) else (
+            echo SSH key successfully configured.
+        )
     )
 ) else (
-    echo No public key found locally; skipping upload.
+    echo No SSH public key found locally.
+    echo Skipping SSH key upload.
 )
 
-echo Running remote update: cd telegram-file-transfer && pm2 flush && git pull && pm2 restart all
-ssh %REMOTE_HOST% "cd /root/telegram-file-transfer && pm2 flush && git pull && pm2 restart all" || (
+echo.
+echo Updating backend...
+
+ssh "%REMOTE_HOST%" "cd %REMOTE_DIR% && git pull && pm2 flush && pm2 restart all"
+
+if errorlevel 1 (
+    echo.
     echo ERROR: Remote update failed.
     exit /b 1
 )
 
 echo.
-echo [6/6] Showing production logs...
+echo Backend update successful.
+echo.
 
-ssh %REMOTE_HOST% "pm2 logs --lines 80 --nostream"
+rem ============================================================
+rem [6/6] PRODUCTION LOGS
+rem ============================================================
+
+echo [6/6] Showing production logs...
+echo.
+echo ============================================================
+echo                    PM2 LOGS
+echo ============================================================
+echo.
+
+ssh "%REMOTE_HOST%" "pm2 logs --lines 80 --nostream"
+
+echo.
+echo ============================================================
+echo                  DEPLOY COMPLETE
+echo ============================================================
+echo.
+
+exit /b 0
+ 
