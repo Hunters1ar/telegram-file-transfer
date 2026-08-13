@@ -108,7 +108,11 @@ def get_frontend_index() -> str:
     if not os.path.isfile(index_path):
         raise HTTPException(
             status_code=503,
-            detail="Frontend is not built. Run `cd website && npm ci && npm run build` before starting the server.",
+            detail=(
+                "Frontend is not built. Expected index at: "
+                f"{index_path}.\nRun `cd website && npm ci && npm run build` (or build in your deployment) "
+                "before starting the server."
+            ),
         )
     return index_path
 
