@@ -376,7 +376,7 @@ def get_inline_result(file_meta):
         ),
         reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="⬇ Download", url=f"https://api.hunterstar.online/api/v1/download/{file_meta.share_id}")],
-            [types.InlineKeyboardButton(text="📋 Copy ID", switch_inline_query=file_meta.share_id), types.InlineKeyboardButton(text="🌍 Open Website", url=f"https://cloud.hunterstar.online/f/{file_meta.share_id}")]
+            [types.InlineKeyboardButton(text="📋 Copy ID", switch_inline_query=file_meta.share_id), types.InlineKeyboardButton(text="🌍 Open Website", url=f"https://www.hunterstar.online/f/{file_meta.share_id}")]
         ])
     )
 
@@ -612,7 +612,7 @@ async def start_polling():
         await bot.set_chat_menu_button(
             menu_button=types.MenuButtonWebApp(
                 text="Open", 
-                web_app=types.WebAppInfo(url="https://cloud.hunterstar.online/?v=2.7")
+                web_app=types.WebAppInfo(url="https://www.hunterstar.online/?v=2.7")
             )
         )
     except Exception as e:
