@@ -59,13 +59,13 @@ export function DetailsPanel() {
             <div className="dp-actions">
               <button
                 className="dp-btn"
-                onClick={() => copyText(`https://t.me/hunterstar_bot?start=${file.id}`, "Download link")}
+                onClick={() => copyText(`https://t.me/hunterstarfilebot?start=${file.id}`, "Download link")}
               >
                 <Download /> Download
               </button>
               <button
                 className="dp-btn"
-                onClick={() => copyText(`https://t.me/hunterstar_bot?start=${file.id}`, "Link")}
+                onClick={() => copyText(`https://t.me/hunterstarfilebot?start=${file.id}`, "Link")}
               >
                 <Link2 /> Share
               </button>

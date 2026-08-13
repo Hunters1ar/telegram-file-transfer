@@ -232,7 +232,7 @@ function addLog(icon, msg) {
 
 /* ===== FILE ACTIONS ===== */
 function copyLink(id) {
-  navigator.clipboard?.writeText(`https://t.me/hunterstar_bot?start=${encodeURIComponent(id)}`);
+  navigator.clipboard?.writeText(`https://t.me/hunterstarfilebot?start=${encodeURIComponent(id)}`);
   toast('Link copied to clipboard');
   if (isMiniApp && tg) tg.HapticFeedback?.notification('success');
 }

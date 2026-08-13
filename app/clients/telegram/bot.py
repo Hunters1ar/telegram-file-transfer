@@ -12,6 +12,10 @@ from app.clients.telegram.i18n import t, get_all_translations
 
 bot = Bot(token=settings.bot_token)
 dp = Dispatcher()
+
+def api_url(path: str) -> str:
+    return f"{settings.api_base_url.rstrip('/')}{path}"
+
 @dp.message(Command("language"))
 async def command_language_handler(message: types.Message) -> None:
     from app.clients.telegram.keyboards import get_language_keyboard
@@ -375,8 +379,8 @@ def get_inline_result(file_meta):
             parse_mode="HTML"
         ),
         reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text="⬇ Download", url=f"https://api.hunterstar.online/api/v1/download/{file_meta.share_id}")],
-            [types.InlineKeyboardButton(text="📋 Copy ID", switch_inline_query=file_meta.share_id), types.InlineKeyboardButton(text="🌍 Open Website", url=f"https://www.hunterstar.online/f/{file_meta.share_id}")]
+            [types.InlineKeyboardButton(text="⬇ Download", url=api_url(f"/api/v1/download/{file_meta.share_id}"))],
+            [types.InlineKeyboardButton(text="📋 Copy ID", switch_inline_query=file_meta.share_id), types.InlineKeyboardButton(text="🌍 Open App", url=settings.webapp_url)]
         ])
     )
 
@@ -606,15 +610,18 @@ async def setup_bot_commands(bot_instance: Bot):
     except Exception as e:
         print(f"Could not set admin commands: {e}")
 
-async def start_polling():
-    await setup_bot_commands(bot)
+async def setup_bot_ui(bot_instance: Bot):
+    await setup_bot_commands(bot_instance)
     try:
-        await bot.set_chat_menu_button(
+        await bot_instance.set_chat_menu_button(
             menu_button=types.MenuButtonWebApp(
                 text="Open", 
-                web_app=types.WebAppInfo(url="https://www.hunterstar.online/?v=2.7")
+                web_app=types.WebAppInfo(url=settings.webapp_url)
             )
         )
     except Exception as e:
         print(f"Could not set menu button: {e}")
+
+async def start_polling():
+    await setup_bot_ui(bot)
     await dp.start_polling(bot)

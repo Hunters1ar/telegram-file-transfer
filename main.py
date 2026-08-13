@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from app.core.config import settings
 from app.repositories.mongodb.mongo import connect_to_mongo, close_mongo_connection
 from app.gateway.api.v1.router import router as api_v1_router
@@ -23,9 +23,9 @@ async def lifespan(app: FastAPI):
         bot_task = asyncio.create_task(start_polling())
     elif settings.bot_mode == "webhook":
         logging.info("Starting bot in webhook mode...")
-        await bot.set_webhook(f"https://api.hunterstar.online/webhook")
-        from app.clients.telegram.bot import setup_bot_commands
-        await setup_bot_commands(bot)
+        await bot.set_webhook(f"{settings.api_base_url.rstrip('/')}/webhook")
+        from app.clients.telegram.bot import setup_bot_ui
+        await setup_bot_ui(bot)
         
     yield
     
@@ -38,7 +38,6 @@ async def lifespan(app: FastAPI):
     await close_mongo_connection()
 
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from aiogram import types as tg_types
 import os
@@ -72,6 +71,7 @@ async def telegram_webhook(update: dict):
 
 # Serve the website frontend at /app/
 WEBSITE_DIR = os.path.join(os.path.dirname(__file__), "website", "out")
+WEBSITE_ROOT = os.path.abspath(WEBSITE_DIR)
 
 NO_CACHE_HEADERS = {
     "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -79,11 +79,77 @@ NO_CACHE_HEADERS = {
     "Expires": "0"
 }
 
+STATIC_CACHE_HEADERS = {
+    "Cache-Control": "public, max-age=31536000, immutable"
+}
+
+PUBLIC_ASSETS = {
+    "android-chrome-192x192.png",
+    "android-chrome-512x512.png",
+    "apple-touch-icon.png",
+    "favicon-16x16.png",
+    "favicon-32x32.png",
+    "favicon.ico",
+    "site.webmanifest",
+    "sw.js",
+}
+
+def get_frontend_path(path: str) -> str:
+    file_path = os.path.abspath(os.path.join(WEBSITE_ROOT, path))
+    try:
+        if os.path.commonpath([WEBSITE_ROOT, file_path]) != WEBSITE_ROOT:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    return file_path
+
+def get_frontend_index() -> str:
+    index_path = get_frontend_path("index.html")
+    if not os.path.isfile(index_path):
+        raise HTTPException(
+            status_code=503,
+            detail="Frontend is not built. Run `cd website && npm ci && npm run build` before starting the server.",
+        )
+    return index_path
+
+def frontend_file_response(path: str, headers: dict[str, str] | None = None, media_type: str | None = None):
+    file_path = get_frontend_path(path)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Asset not found")
+    return FileResponse(file_path, media_type=media_type, headers=headers)
+
+@app.get("/_next/{path:path}")
+async def serve_next_asset(path: str):
+    return frontend_file_response(os.path.join("_next", path), headers=STATIC_CACHE_HEADERS)
+
+@app.get("/icons/{path:path}")
+async def serve_icon_asset(path: str):
+    return frontend_file_response(os.path.join("icons", path), headers=STATIC_CACHE_HEADERS)
+
+@app.get("/site.webmanifest")
+@app.get("/sw.js")
+@app.get("/favicon.ico")
+@app.get("/favicon-16x16.png")
+@app.get("/favicon-32x32.png")
+@app.get("/apple-touch-icon.png")
+@app.get("/android-chrome-192x192.png")
+@app.get("/android-chrome-512x512.png")
+async def serve_public_asset(request: Request):
+    asset_name = request.url.path.lstrip("/")
+    if asset_name not in PUBLIC_ASSETS:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    headers = NO_CACHE_HEADERS if asset_name == "sw.js" else None
+    return frontend_file_response(asset_name, headers=headers)
+
+@app.get("/app")
+async def serve_webapp_root():
+    return FileResponse(get_frontend_index(), media_type="text/html", headers=NO_CACHE_HEADERS)
+
 @app.get("/app/{path:path}")
 async def serve_webapp(path: str = ""):
     if not path or path == "index.html":
-        return FileResponse(os.path.join(WEBSITE_DIR, "index.html"), media_type="text/html", headers=NO_CACHE_HEADERS)
-    file_path = os.path.join(WEBSITE_DIR, path)
+        return FileResponse(get_frontend_index(), media_type="text/html", headers=NO_CACHE_HEADERS)
+    file_path = get_frontend_path(path)
     if os.path.isfile(file_path):
         # Always serve JS, CSS, and service worker fresh — never cached
         ext = os.path.splitext(path)[1].lower()
@@ -91,4 +157,4 @@ async def serve_webapp(path: str = ""):
             return FileResponse(file_path, headers=NO_CACHE_HEADERS)
         return FileResponse(file_path)
     # SPA fallback
-    return FileResponse(os.path.join(WEBSITE_DIR, "index.html"), media_type="text/html", headers=NO_CACHE_HEADERS)
+    return FileResponse(get_frontend_index(), media_type="text/html", headers=NO_CACHE_HEADERS)

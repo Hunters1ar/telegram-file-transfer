@@ -2,28 +2,23 @@
 setlocal EnableDelayedExpansion
 
 echo.
-
-
-
-echo [2/6] Deploying website to Vercel...
+echo [1/5] Building website locally...
 
 cd website
-
-call vercel --prod
+call npm run build
 
 if errorlevel 1 (
-    echo ERROR: Vercel deployment failed.
+    echo ERROR: Website build failed.
     exit /b 1
 )
 
 cd ..
 
 echo.
-
-echo [4/6] Committing changes...
+echo [2/5] Committing changes...
 
 git add .
-git commit -m "f"
+git commit -m "Fix Telegram web app deployment"
 
 if errorlevel 1 (
     echo ERROR: Git commit failed.
@@ -31,6 +26,9 @@ if errorlevel 1 (
 )
 
 git config --local credential.username Hunters1ar
+
+echo.
+echo [3/5] Pushing changes...
 
 git push
 
@@ -40,19 +38,16 @@ if errorlevel 1 (
 )
 
 echo.
+echo [4/5] Updating production server...
 
-
-echo [5/6] Updating production server...
-
-ssh root@134.209.75.49 " pm2 flush && cd /root/telegram-file-transfer && git pull && pm2 restart all"
+ssh root@134.209.75.49 "pm2 flush && cd /root/telegram-file-transfer && git pull && cd website && npm ci && npm run build && cd .. && pm2 restart all"
 
 if errorlevel 1 (
     echo ERROR: Server deployment failed.
     exit /b 1
 )
+
 echo.
+echo [5/5] Showing production logs...
 
-
-cls
-
-ssh root@134.209.75.49 "pm2 logs 10"                                                                  
+ssh root@134.209.75.49 "pm2 logs --lines 80 --nostream"

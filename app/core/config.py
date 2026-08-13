@@ -5,6 +5,9 @@ from typing import Optional
 class Settings(BaseSettings):
     bot_token: str
     bot_mode: str = "polling"
+    api_base_url: str = "https://api.hunterstar.online"
+    webapp_url: str = "https://api.hunterstar.online/app/?v=2.8"
+    bot_username: str = "hunterstarfilebot"
     
     mongodb_uri: str
     

@@ -40,14 +40,14 @@ export function FileRow({ file }: { file: FileItem }) {
         <button
           className="f-btn"
           title="Download"
-          onClick={() => copyText(`https://t.me/hunterstar_bot?start=${file.id}`, "Download link")}
+          onClick={() => copyText(`https://t.me/hunterstarfilebot?start=${file.id}`, "Download link")}
         >
           <Download size={15} />
         </button>
         <button
           className="f-btn"
           title="Copy link"
-          onClick={() => copyText(`https://t.me/hunterstar_bot?start=${file.id}`, "Link")}
+          onClick={() => copyText(`https://t.me/hunterstarfilebot?start=${file.id}`, "Link")}
         >
           <Link2 size={15} />
         </button>

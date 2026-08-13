@@ -2,6 +2,7 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram import types
 from app.domain.entities.file import FileMetadata
+from app.core.config import settings
 
 class FileAction(CallbackData, prefix="file"):
     action: str
@@ -11,7 +12,7 @@ def get_file_card_keyboard(file_meta: FileMetadata):
     builder = InlineKeyboardBuilder()
     
     # ROW 1
-    download_url = f"https://api.hunterstar.online/api/v1/download/{file_meta.share_id}"
+    download_url = f"{settings.api_base_url.rstrip('/')}/api/v1/download/{file_meta.share_id}"
     builder.button(text="⬇ Download", url=download_url)
     
     # ROW 2
