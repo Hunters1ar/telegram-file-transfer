@@ -51,48 +51,9 @@ export function DashboardView() {
 
   const runUpload = useCallback(
     (selected: { name: string; sizeBytes: number }[]) => {
-      const items: QueueItem[] = selected.map((s) => ({
-        id: Math.random().toString(36).slice(2, 8),
-        name: s.name,
-        sizeBytes: s.sizeBytes,
-        progress: 0,
-        status: "uploading",
-      }))
-      setQueue(items)
-      setPhase("queue")
-
-      items.forEach((item) => {
-        timers.current[item.id] = setInterval(() => {
-          setQueue((prev) => {
-            const next = prev.map((q) => {
-              if (q.id !== item.id || q.status !== "uploading") return q
-              const inc = Math.random() * 22 + 8
-              const progress = Math.min(q.progress + inc, 100)
-              return { ...q, progress, status: progress >= 100 ? "done" : "uploading" }
-            })
-            const target = next.find((q) => q.id === item.id)
-            if (target && target.progress >= 100) {
-              clearInterval(timers.current[item.id])
-              delete timers.current[item.id]
-              const allDone = next.every((q) => q.status !== "uploading")
-              if (allDone) {
-                const succeeded = next.filter((q) => q.status === "done")
-                if (succeeded.length) {
-                  addUploads(succeeded.map((q) => ({ name: q.name, sizeBytes: q.sizeBytes })))
-                  const last = succeeded[succeeded.length - 1]
-                  setLastSuccess({ name: last.name, id: Math.random().toString(36).slice(2, 8).toUpperCase() })
-                  setPhase("success")
-                } else {
-                  setPhase("default")
-                }
-              }
-            }
-            return next
-          })
-        }, 400)
-      })
+      alert("Please upload files by sending them directly to the Telegram Bot! Web App uploads are coming soon.");
     },
-    [addUploads],
+    [],
   )
 
   const handleFiles = useCallback(
