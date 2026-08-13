@@ -3,28 +3,7 @@ setlocal EnableDelayedExpansion
 
 echo.
 
-echo [1/6] Updating service worker version...
 
-python bump_version.py
-
-if errorlevel 1 (
-    echo.
-    echo DEPLOYMENT STOPPED: Service worker version update failed.
-    exit /b 1
-)
-
-echo.
-
-echo [2/6] Current service worker version:
-
-findstr /C:"const CACHE_NAME" website\public\sw.js
-
-if errorlevel 1 (
-    echo ERROR: Could not read CACHE_NAME.
-    exit /b 1
-)
-
-echo.
 
 echo [2/6] Deploying website to Vercel...
 

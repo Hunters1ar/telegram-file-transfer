@@ -608,4 +608,13 @@ async def setup_bot_commands(bot_instance: Bot):
 
 async def start_polling():
     await setup_bot_commands(bot)
+    try:
+        await bot.set_chat_menu_button(
+            menu_button=types.MenuButtonWebApp(
+                text="Open", 
+                web_app=types.WebAppInfo(url="https://cloud.hunterstar.online/?v=2.7")
+            )
+        )
+    except Exception as e:
+        print(f"Could not set menu button: {e}")
     await dp.start_polling(bot)

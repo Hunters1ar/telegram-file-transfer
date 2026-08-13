@@ -52,17 +52,7 @@ export default function RootLayout({
         />
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <script dangerouslySetInnerHTML={{
-          __html: `
-            if ('serviceWorker' in navigator) {
-              window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js').catch(function(err) {
-                  console.log('ServiceWorker registration failed: ', err);
-                });
-              });
-            }
-          `
-        }} />
+        {/* Removed legacy service worker registration */}
       </head>
       <body className="antialiased">
         <I18nProvider>
