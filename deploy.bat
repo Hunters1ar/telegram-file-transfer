@@ -17,7 +17,7 @@ echo.
 
 echo [2/6] Current service worker version:
 
-findstr /C:"const CACHE_NAME" website\sw.js
+findstr /C:"const CACHE_NAME" website\public\sw.js
 
 if errorlevel 1 (
     echo ERROR: Could not read CACHE_NAME.

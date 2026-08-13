@@ -4,7 +4,7 @@ from pathlib import Path
 # Cache the translations in memory
 _translations = {}
 
-LOCALES_DIR = Path(__file__).parent.parent.parent.parent / "website" / "locales"
+LOCALES_DIR = Path(__file__).parent.parent.parent.parent / "website" / "public" / "locales"
 
 def load_translations(lang: str):
     if lang in _translations:

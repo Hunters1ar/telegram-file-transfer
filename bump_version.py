@@ -1,7 +1,7 @@
 import re
 import sys
 
-file_path = 'website/sw.js'
+file_path = 'website/public/sw.js'
 try:
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
