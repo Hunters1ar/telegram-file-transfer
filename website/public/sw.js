@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hunterstar-kill-cache-v1';
+const CACHE_NAME = 'hunterstar-kill-cache-v3';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
