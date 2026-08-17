@@ -88,6 +88,7 @@ const I18N = {
 
 // Expose global t() function
 window.t = (text) => I18N.t(text);
+window.I18N = I18N;
 
 // Auto-initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', async () => {
