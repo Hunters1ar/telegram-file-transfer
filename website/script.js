@@ -1141,12 +1141,43 @@ document.querySelectorAll('.cmd-item').forEach(item => {
       showView('folders');
     } else if (action === 'settings') {
       showView('settings');
+    } else if (action === 'analytics') {
+      showView('analytics');
+    } else if (action === 'theme') {
+      const current = localStorage.getItem('hunterstar-theme') || 'dark';
+      setTheme(current === 'dark' ? 'light' : 'dark');
     } else if (action === 'language') {
       showView('settings');
-      setTimeout(() => document.getElementById('lang-select')?.focus(), 50);
+      setTimeout(() => document.getElementById('lang-selector')?.focus(), 50);
     }
     cmdPalette.hidden = true;
   });
+});
+
+cmdInput.addEventListener('input', (e) => {
+  const val = e.target.value.toLowerCase();
+  document.querySelectorAll('.cmd-item').forEach(item => {
+    const text = item.textContent.toLowerCase();
+    item.style.display = text.includes(val) ? 'flex' : 'none';
+  });
+});
+
+window.setTheme = function(theme) {
+  const root = document.documentElement;
+  root.classList.remove('light', 'dark');
+  root.classList.add(theme);
+  root.style.colorScheme = theme;
+  localStorage.setItem('hunterstar-theme', theme);
+  
+  const lightBtn = document.getElementById('theme-btn-light');
+  const darkBtn = document.getElementById('theme-btn-dark');
+  if (lightBtn) lightBtn.classList.toggle('active', theme === 'light');
+  if (darkBtn) darkBtn.classList.toggle('active', theme === 'dark');
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  const t = localStorage.getItem('hunterstar-theme') || 'dark';
+  setTheme(t);
 });
 
 // Also allow clicking the main search bar to open the command palette for better UX

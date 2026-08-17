@@ -96,7 +96,7 @@ rem ============================================================
 rem [1/6] BUILD WEBSITE
 rem ============================================================
 
-echo [1/6] Building website locally...
+echo [1/6] Preparing website (vanilla HTML)...
 echo.
 
 if not exist "website" (
@@ -104,39 +104,7 @@ if not exist "website" (
     exit /b 1
 )
 
-pushd website
-if errorlevel 1 (
-    echo ERROR: Failed to enter website directory.
-    exit /b 1
-)
-
-echo Installing dependencies...
-call npm ci
-if errorlevel 1 (
-    echo ERROR: npm ci failed.
-    popd
-    exit /b 1
-)
-
-echo.
-echo Building website...
-call npm run build
-if errorlevel 1 (
-    echo ERROR: Website build failed.
-    popd
-    exit /b 1
-)
-
-if not exist "out\index.html" (
-    echo ERROR: Build completed but out\index.html was not found.
-    popd
-    exit /b 1
-)
-
-popd
-
-echo.
-echo Website build successful.
+echo Website is static. Skipping build step.
 echo.
 
 rem ============================================================

@@ -8,6 +8,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+  (function() {
+    try {
+      var t = localStorage.getItem('hunterstar-theme');
+      if (!t) t = 'dark';
+      var root = document.documentElement;
+      root.classList.remove('light','dark');
+      root.classList.add(t);
+      root.style.colorScheme = t;
+    } catch (e) {}
+  })();
+</script>
 <link rel="stylesheet" href="style.css?v=9">
 <script src="i18n.js"></script>
 </head>
@@ -24,6 +36,8 @@
       <div class="cmd-item" data-action="upload"><span>⬆</span> <span data-i18n>Upload File</span></div>
       <div class="cmd-item" data-action="folder"><span><img src="icons/folders-icon.webp" class="svg-icon" alt="folders-icon"></span> <span data-i18n>Create Folder</span></div>
       <div class="cmd-item" data-action="settings"><span><img src="icons/settings-icon.webp" class="svg-icon" alt="settings-icon"></span> <span data-i18n>Settings</span></div>
+      <div class="cmd-item" data-action="analytics"><span><img src="icons/stats-icon.webp" class="svg-icon" alt="stats-icon"></span> <span data-i18n>Analytics</span></div>
+      <div class="cmd-item" data-action="theme"><span>🌗</span> <span data-i18n>Toggle Theme</span></div>
       <div class="cmd-item" data-action="language"><span>🌐</span> <span data-i18n>Language</span></div>
     </div>
   </div>
@@ -235,13 +249,21 @@
           <div class="settings-row">
             <div>
               <h3 data-i18n>Theme</h3>
-              <p data-i18n>Luxury Crimson (Default)</p>
+              <p data-i18n>Luxury Crimson — dark or light</p>
+            </div>
+            <div class="theme-toggle" role="group" aria-label="Theme">
+              <button id="theme-btn-light" onclick="setTheme('light')">
+                ☀️ <span data-i18n>Light</span>
+              </button>
+              <button id="theme-btn-dark" onclick="setTheme('dark')">
+                🌙 <span data-i18n>Dark</span>
+              </button>
             </div>
           </div>
           <div class="settings-row">
             <div>
               <h3 data-i18n>Language</h3>
-              <select id="lang-selector" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 6px; outline: none; margin-top: 5px;">
+              <select id="lang-selector" class="hs-select">
                 <option value="en">English</option>
                 <option value="ru">Русский</option>
                 <option value="uz">O'zbek</option>
