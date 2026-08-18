@@ -52,6 +52,9 @@ class NamingState(StatesGroup):
 class TTSState(StatesGroup):
     waiting_for_text = State()
 
+class ImageState(StatesGroup):
+    waiting_for_prompt = State()
+
 def api_url(path: str) -> str:
     return f"{settings.api_base_url.rstrip('/')}{path}"
 
@@ -62,6 +65,39 @@ async def command_language_handler(message: types.Message) -> None:
         "Please choose your language / Пожалуйста, выберите язык:",
         reply_markup=get_language_keyboard()
     )
+
+@dp.message(Command("image"))
+async def command_image_handler(message: types.Message, state: FSMContext):
+    prompt = message.text.replace("/image", "").strip()
+    if not prompt:
+        await state.set_state(ImageState.waiting_for_prompt)
+        return await message.answer("🎨 Please send me the prompt for the image you want to generate:")
+        
+    await process_image_generation(message, prompt, state)
+
+@dp.message(ImageState.waiting_for_prompt)
+async def process_image_prompt_state(message: types.Message, state: FSMContext):
+    if not message.text:
+        return await message.answer("Please send a text prompt.")
+    
+    await process_image_generation(message, message.text, state)
+
+async def process_image_generation(message: types.Message, prompt: str, state: FSMContext):
+    msg = await message.answer("🎨 Generating image, please wait...")
+    
+    from app.services.img_generator_service import img_generator_service
+    image_stream = await img_generator_service.generate_image(prompt)
+    
+    if image_stream:
+        from aiogram.types import BufferedInputFile
+        input_file = BufferedInputFile(image_stream.getvalue(), filename="image.jpg")
+        await message.answer_photo(photo=input_file, caption=f"Prompt: {prompt}")
+        await msg.delete()
+    else:
+        await msg.edit_text("❌ Failed to generate image. Please try again later.")
+    
+    await state.clear()
+
 
 @dp.message(CommandStart())
 async def command_start_handler(message: types.Message) -> None:
@@ -721,12 +757,14 @@ async def setup_bot_commands(bot_instance: Bot):
     user_commands = [
         types.BotCommand(command="start", description="Start the bot and show menu"),
         types.BotCommand(command="tts", description="Convert text to voice 🎙️"),
+        types.BotCommand(command="image", description="Generate an image using AI 🎨"),
         types.BotCommand(command="settings", description="Manage file visibility"),
         types.BotCommand(command="language", description="Change Language")
     ]
     admin_commands = [
         types.BotCommand(command="start", description="Start the bot and show menu"),
         types.BotCommand(command="tts", description="Convert text to voice 🎙️"),
+        types.BotCommand(command="image", description="Generate an image using AI 🎨"),
         types.BotCommand(command="settings", description="Manage file visibility"),
         types.BotCommand(command="language", description="Change Language"),
         types.BotCommand(command="admin", description="Open Admin Panel"),
@@ -759,67 +797,9 @@ async def start_polling():
 
 
 # ==========================================
-# Shadow Mode Commands
-# These are proper Command handlers — registered BEFORE the fallback so they
-# always work even when Venice is unavailable.  /shadow_off is the emergency
-# brake that must never fail.
-# ==========================================
-
-@dp.message(Command("shadow_off"))
-async def command_shadow_off(message: types.Message):
-    """
-    Emergency Shadow Mode deactivation.
-    Works regardless of Venice API availability — only touches Firestore.
-    """
-    from app.services.venice_service import set_shadow_active
-    try:
-        await set_shadow_active(message.from_user.id, False)
-        await message.answer(
-            "🌅 <b>Shadow Mode deactivated.</b> Welcome back. 😊",
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        import logging
-        logging.error(f"shadow_off failed for user {message.from_user.id}: {e}")
-        await message.answer("🌅 Shadow Mode deactivated.")
-
-
-@dp.message(Command("shadow_status"))
-async def command_shadow_status(message: types.Message):
-    """
-    Shows Shadow Mode status.
-    Admin: full quota breakdown (used/total, available keys, model).
-    Everyone else: just active/inactive state.
-    """
-    from app.services.venice_service import get_shadow_active, get_key_usage_summary
-    try:
-        active = await get_shadow_active(message.from_user.id)
-        state_line = "🌑 <b>Shadow Mode:</b> ACTIVE" if active else "🌕 <b>Shadow Mode:</b> OFF"
-
-        if message.from_user.id == settings.telegram_admin_user_id:
-            usage = await get_key_usage_summary()
-            if usage["used"] >= 0:
-                reply = (
-                    f"{state_line}\n"
-                    f"🔑 Today's requests: <b>{usage['used']} / {usage['total_capacity']}</b>\n"
-                    f"🗝️ Available keys: <b>{usage['available']} / {usage['total_keys']}</b>\n"
-                    f"🧠 Model: <code>{settings.venice_model}</code>"
-                )
-            else:
-                reply = f"{state_line}\n⚠️ Could not retrieve quota info."
-        else:
-            reply = state_line
-
-        await message.answer(reply, parse_mode="HTML")
-    except Exception as e:
-        import logging
-        logging.error(f"shadow_status failed for user {message.from_user.id}: {e}")
-        await message.answer("⚠️ Could not retrieve Shadow Mode status.")
-
 # ==========================================
 # TTS + AI Agent Fallback Handlers
 # MUST REMAIN AT THE BOTTOM OF THE FILE
-# Shadow Mode detection lives in ai_agent_fallback_handler ONLY.
 # ==========================================
 
 async def _send_voice_or_fallback(
@@ -927,57 +907,12 @@ async def ai_agent_fallback_handler(message: types.Message, state: FSMContext):
     if effective_text.startswith("/"):
         return
 
-    from app.services.venice_service import (
-        is_activation_phrase,
-        is_deactivation_phrase,
-        get_shadow_active,
-        set_shadow_active,
-        ask_venice,
-    )
     from app.services.ai_service import ask_agent
     from app.repositories.mongodb.user_repository import user_repository
 
-    # ── 1. Activation phrase check ────────────────────────────────────────────
-    if is_activation_phrase(effective_text):
-        try:
-            await set_shadow_active(message.from_user.id, True)
-            await message.answer(
-                "🌑 <i>...something stirs in the dark.</i>\n\n"
-                "<b>Shadow Mode active.</b> I'm here. 😈\n"
-                "<i>Use /shadow_off to return to normal.</i>",
-                parse_mode="HTML"
-            )
-        except Exception as e:
-            import logging
-            logging.error(f"Shadow activation failed for {message.from_user.id}: {e}")
-            await message.answer("⚠️ Could not activate Shadow Mode. Please try again.")
-        return
-
-    # ── 2. Deactivation phrase check ──────────────────────────────────────────
-    if is_deactivation_phrase(effective_text):
-        try:
-            is_active = await get_shadow_active(message.from_user.id)
-            if is_active:
-                await set_shadow_active(message.from_user.id, False)
-                await message.answer(
-                    "🌅 <b>Shadow retreats.</b> Back to normal. 😊",
-                    parse_mode="HTML"
-                )
-                return
-        except Exception as e:
-            import logging
-            logging.error(f"Shadow deactivation check failed for {message.from_user.id}: {e}")
-
-    # ── 3. Pre-fetch shadow state once ────────────────────────────────────────
-    shadow_active = False
-    try:
-        shadow_active = await get_shadow_active(message.from_user.id)
-    except Exception:
-        pass
-
-    # ── 4. TTS intent detection (only when Shadow Mode is OFF) ────────────────
+    # ── 4. TTS intent detection ────────────────────────────────────────────────
     from app.core.config import settings as _s
-    if not shadow_active and _s.tts_enabled:
+    if _s.tts_enabled:
         from app.services.tts_service import detect_tts_intent, TTSIntentKind
 
         tts_intent = detect_tts_intent(effective_text)
@@ -1019,10 +954,7 @@ async def ai_agent_fallback_handler(message: types.Message, state: FSMContext):
         user = await user_repository.get_by_telegram_id(message.from_user.id)
         lang = user.language if user and user.language else "en"
 
-        if shadow_active:
-            response = await ask_venice(message.from_user.id, effective_text, lang=lang)
-        else:
-            response = await ask_agent(message.from_user.id, effective_text, lang=lang)
+        response = await ask_agent(message.from_user.id, effective_text, lang=lang)
 
         await thinking_msg.delete()
         await message.answer(markdown_to_html(response), parse_mode="HTML")

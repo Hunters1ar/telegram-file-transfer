@@ -36,26 +36,10 @@ class Settings(BaseSettings):
     gemini_ai_api4: str = ""
     gemini_ai_api5: str = ""
 
-    # ── Venice AI (direct — NOT through OpenRouter) ──────────────────────────
-    venice_api_key1: str = ""
-    venice_api_key2: str = ""
-    venice_api_key3: str = ""
-    venice_api_key4: str = ""
-    venice_api_key5: str = ""
-    venice_api_key6: str = ""
-    venice_base_url: str = "https://api.venice.ai/api/v1"
-    venice_model: str = "llama-3.3-70b"
-    # Number of requests each Venice API key may make per calendar day
-    venice_daily_limit: int = 10
-
     # ── Text-to-Speech (Deepgram Flux TTS via OpenRouter) ────────────────────
     tts_enabled: bool = True
     tts_model: str = "deepgram/flux-tts:free"
     tts_voice: str = "flux-alexis-en"
-
-    # ── Firebase Admin SDK ───────────────────────────────────────────────────
-    # Path to the service account JSON on the server — never commit the file itself
-    firebase_credentials_path: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
