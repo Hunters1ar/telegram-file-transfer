@@ -28,7 +28,11 @@ else:
     logger.warning("OPENROUTER_API_KEY is not set. AI agent features will not work.")
 
 # Model configuration
-MODEL = "dots-studio/dots-3-note-preview:free"
+# Primary model: Dots3-Note Preview (Dots Studio) — 36.8B free weekly tokens
+# Fallback model: NVIDIA Nemotron 3 Ultra 550B — free, 1M context, reasoning-capable
+MODEL_PRIMARY = "dots-studio/dots-3-note-preview:free"
+MODEL_FALLBACK = "nvidia/nemotron-3-ultra-550b-a55b:free"
+MODELS = [MODEL_PRIMARY, MODEL_FALLBACK]  # Order: primary first, fallback second
 RATE_LIMIT_SECONDS = 2.0
 MAX_HISTORY = 20
 
@@ -652,17 +656,27 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en") -> str:
     messages = [{"role": "system", "content": dynamic_system_prompt}] + history
 
     # We will do a loop to handle multiple tool calls if necessary (max 15 iterations to avoid infinite loops)
+    active_model = MODEL_PRIMARY  # Start with the primary model
     for _ in range(15):
-        try:
-            response = await client.chat.completions.create(
-                model=MODEL,
-                messages=messages,
-                tools=TOOLS,
-                tool_choice="auto",
-                extra_body={"reasoning": {"enabled": True}}
-            )
-        except Exception as e:
-            logger.error(f"Error calling OpenRouter API: {e}")
+        response = None
+        last_error = None
+        # Try each model in order; on error fall through to the next
+        for candidate_model in MODELS:
+            try:
+                response = await client.chat.completions.create(
+                    model=candidate_model,
+                    messages=messages,
+                    tools=TOOLS,
+                    tool_choice="auto",
+                    extra_body={"reasoning": {"enabled": True}}
+                )
+                active_model = candidate_model  # Remember which model succeeded
+                break  # Success — stop trying other models
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Model '{candidate_model}' failed, trying next. Error: {e}")
+        if response is None:
+            logger.error(f"All models failed. Last error: {last_error}")
             return "⚠️ Sorry, I'm having trouble connecting to the AI service right now. Please try again later."
 
         response_message = response.choices[0].message

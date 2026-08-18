@@ -732,7 +732,7 @@ async def setup_bot_commands(bot_instance: Bot):
     
     await bot_instance.set_my_commands(user_commands, scope=types.BotCommandScopeDefault())
     try:
-        await bot_instance.set_my_commands(admin_commands, scope=types.BotCommandScopeChat(chat_id=settings.admin))
+        await bot_instance.set_my_commands(admin_commands, scope=types.BotCommandScopeChat(chat_id=settings.telegram_admin_user_id))
     except Exception as e:
         print(f"Could not set admin commands: {e}")
 
@@ -752,15 +752,118 @@ async def start_polling():
     await setup_bot_ui(bot)
     await dp.start_polling(bot)
 
+
+# ==========================================
+# Shadow Mode Commands
+# These are proper Command handlers — registered BEFORE the fallback so they
+# always work even when Venice is unavailable.  /shadow_off is the emergency
+# brake that must never fail.
+# ==========================================
+
+@dp.message(Command("shadow_off"))
+async def command_shadow_off(message: types.Message):
+    """
+    Emergency Shadow Mode deactivation.
+    Works regardless of Venice API availability — only touches Firestore.
+    """
+    from app.services.venice_service import set_shadow_active
+    try:
+        await set_shadow_active(message.from_user.id, False)
+        await message.answer(
+            "🌅 <b>Shadow Mode deactivated.</b> Welcome back. 😊",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"shadow_off failed for user {message.from_user.id}: {e}")
+        await message.answer("🌅 Shadow Mode deactivated.")
+
+
+@dp.message(Command("shadow_status"))
+async def command_shadow_status(message: types.Message):
+    """
+    Shows Shadow Mode status.
+    Admin: full quota breakdown (used/total, available keys, model).
+    Everyone else: just active/inactive state.
+    """
+    from app.services.venice_service import get_shadow_active, get_key_usage_summary
+    try:
+        active = await get_shadow_active(message.from_user.id)
+        state_line = "🌑 <b>Shadow Mode:</b> ACTIVE" if active else "🌕 <b>Shadow Mode:</b> OFF"
+
+        if message.from_user.id == settings.telegram_admin_user_id:
+            usage = await get_key_usage_summary()
+            if usage["used"] >= 0:
+                reply = (
+                    f"{state_line}\n"
+                    f"🔑 Today's requests: <b>{usage['used']} / {usage['total_capacity']}</b>\n"
+                    f"🗝️ Available keys: <b>{usage['available']} / {usage['total_keys']}</b>\n"
+                    f"🧠 Model: <code>{settings.venice_model}</code>"
+                )
+            else:
+                reply = f"{state_line}\n⚠️ Could not retrieve quota info."
+        else:
+            reply = state_line
+
+        await message.answer(reply, parse_mode="HTML")
+    except Exception as e:
+        import logging
+        logging.error(f"shadow_status failed for user {message.from_user.id}: {e}")
+        await message.answer("⚠️ Could not retrieve Shadow Mode status.")
+
 # ==========================================
 # AI Agent Fallback Handler
 # MUST REMAIN AT THE BOTTOM OF THE FILE
+# Shadow Mode detection lives here ONLY — never in middleware or other handlers.
 # ==========================================
 @dp.message(F.text)
 async def ai_agent_fallback_handler(message: types.Message):
-    # Ignore messages from the admin that look like commands but aren't registered
+    # Ignore unregistered slash commands
     if message.text.startswith('/'):
         return
+
+    from app.services.venice_service import (
+        is_activation_phrase,
+        is_deactivation_phrase,
+        get_shadow_active,
+        set_shadow_active,
+        ask_venice,
+    )
+    from app.services.ai_service import ask_agent
+    from app.repositories.mongodb.user_repository import user_repository
+
+    # ── 1. Activation phrase check ────────────────────────────────────────────
+    # Checked before showing the thinking sticker so the reply is instant.
+    if is_activation_phrase(message.text):
+        try:
+            await set_shadow_active(message.from_user.id, True)
+            await message.answer(
+                "🌑 <i>...something stirs in the dark.</i>\n\n"
+                "<b>Shadow Mode active.</b> I'm here. 😈\n"
+                "<i>Use /shadow_off to return to normal.</i>",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            import logging
+            logging.error(f"Shadow activation failed for {message.from_user.id}: {e}")
+            await message.answer("⚠️ Could not activate Shadow Mode. Please try again.")
+        return
+
+    # ── 2. Deactivation phrase check ──────────────────────────────────────────
+    if is_deactivation_phrase(message.text):
+        try:
+            is_active = await get_shadow_active(message.from_user.id)
+            if is_active:
+                await set_shadow_active(message.from_user.id, False)
+                await message.answer(
+                    "🌅 <b>Shadow retreats.</b> Back to normal. 😊",
+                    parse_mode="HTML"
+                )
+                return
+            # Shadow wasn't active — fall through to normal AI
+        except Exception as e:
+            import logging
+            logging.error(f"Shadow deactivation check failed for {message.from_user.id}: {e}")
 
     # Send thinking sticker while AI processes
     try:
@@ -768,16 +871,21 @@ async def ai_agent_fallback_handler(message: types.Message):
     except Exception:
         thinking_msg = await message.answer("💭 <i>Thinking...</i>", parse_mode="HTML")
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
-    
-    from app.services.ai_service import ask_agent
-    from app.repositories.mongodb.user_repository import user_repository
-    
+
     try:
         user = await user_repository.get_by_telegram_id(message.from_user.id)
         lang = user.language if user and user.language else "en"
-        response = await ask_agent(message.from_user.id, message.text, lang=lang)
+
+        # ── 3. Route: Shadow AI or Normal AI ─────────────────────────────────
+        shadow_active = await get_shadow_active(message.from_user.id)
+        if shadow_active:
+            response = await ask_venice(message.from_user.id, message.text, lang=lang)
+        else:
+            response = await ask_agent(message.from_user.id, message.text, lang=lang)
+
         await thinking_msg.delete()
         await message.answer(markdown_to_html(response), parse_mode="HTML")
+
     except Exception as e:
         import logging
         logging.error(f"Error in AI handler: {e}")

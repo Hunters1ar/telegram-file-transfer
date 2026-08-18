@@ -9,3 +9,4 @@ python-dotenv
 certifi
 python-multipart
 openai
+firebase-admin

@@ -24,37 +24,40 @@ class ConversationRepository:
             )
             logger.info("Created indexes for ai_conversations collection")
 
-    async def add_message(self, user_id: int, message: Dict[str, Any]):
+    async def add_message(self, user_id: int, message: Dict[str, Any], source: str = "normal"):
         """
         Adds a message to the conversation history.
         message should be a dict with keys: role, content, and optionally tool_calls, tool_call_id, name.
+        source: 'normal' for the regular OpenRouter agent, 'shadow' for the Venice Shadow Mode.
         """
         collection = await self._get_collection()
         if collection is None:
             return
-            
+
         # Add metadata
         msg_doc = message.copy()
         msg_doc["user_id"] = user_id
+        msg_doc["source"] = source
         msg_doc["created_at"] = datetime.now(timezone.utc)
-        
+
         await collection.insert_one(msg_doc)
 
-    async def get_history(self, user_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+    async def get_history(self, user_id: int, limit: int = 20, source: str = "normal") -> List[Dict[str, Any]]:
         """
-        Retrieves the last `limit` messages for the user.
-        Returns them in chronological order.
+        Retrieves the last `limit` messages for the user from the given source stream.
+        source: 'normal' for the regular agent, 'shadow' for Shadow Mode.
+        Returns messages in chronological order (oldest first).
         """
         collection = await self._get_collection()
         if collection is None:
             return []
-            
-        cursor = collection.find({"user_id": user_id}).sort("created_at", -1).limit(limit)
+
+        cursor = collection.find({"user_id": user_id, "source": source}).sort("created_at", -1).limit(limit)
         docs = await cursor.to_list(length=limit)
-        
+
         # Reverse to get chronological order (oldest first)
         docs.reverse()
-        
+
         messages = []
         for doc in docs:
             msg = {
@@ -68,7 +71,7 @@ class ConversationRepository:
             if "name" in doc:
                 msg["name"] = doc["name"]
             messages.append(msg)
-            
+
         return messages
         
     async def clear_history(self, user_id: int):

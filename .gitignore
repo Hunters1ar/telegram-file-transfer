@@ -33,3 +33,9 @@ htmlcov/
 website/node_modules/
 website/.next/
 website/out/
+
+# Firebase service account credentials — NEVER commit these
+*.serviceAccount.json
+firebase-credentials*.json
+*-firebase-adminsdk*.json
+firebase-adminsdk*.json
