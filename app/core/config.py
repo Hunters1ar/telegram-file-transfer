@@ -23,6 +23,13 @@ class Settings(BaseSettings):
 
     openrouter_api_key: str = ""
 
+    # Gemini API keys — used as fallback when OpenRouter hits daily rate limit
+    gemini_ai_api1: str = ""
+    gemini_ai_api2: str = ""
+    gemini_ai_api3: str = ""
+    gemini_ai_api4: str = ""
+    gemini_ai_api5: str = ""
+
     # ── Venice AI (direct — NOT through OpenRouter) ──────────────────────────
     venice_api_key1: str = ""
     venice_api_key2: str = ""

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # {user_id: last_request_time (float)}
 _rate_limits = {}
 
-# Initialize AsyncOpenAI client
+# ── OpenRouter client (primary + first fallback) ──────────────────────────────
 if settings.openrouter_api_key:
     client = AsyncOpenAI(
         api_key=settings.openrouter_api_key,
@@ -27,12 +27,35 @@ else:
     client = None
     logger.warning("OPENROUTER_API_KEY is not set. AI agent features will not work.")
 
-# Model configuration
-# Primary model: Dots3-Note Preview (Dots Studio) — 36.8B free weekly tokens
-# Fallback model: NVIDIA Nemotron 3 Ultra 550B — free, 1M context, reasoning-capable
-MODEL_PRIMARY = "dots-studio/dots-3-note-preview:free"
+# ── Gemini clients (third-tier fallback, tried when OpenRouter 429s) ──────────
+# Uses Google's OpenAI-compatible endpoint so we can reuse AsyncOpenAI.
+_GEMINI_KEYS = [
+    k for k in [
+        settings.gemini_ai_api1,
+        settings.gemini_ai_api2,
+        settings.gemini_ai_api3,
+        settings.gemini_ai_api4,
+        settings.gemini_ai_api5,
+    ] if k
+]
+_gemini_clients = [
+    AsyncOpenAI(
+        api_key=key,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+    )
+    for key in _GEMINI_KEYS
+]
+GEMINI_MODEL = "gemini-2.0-flash"   # fast, free-tier, supports tools
+
+if _gemini_clients:
+    logger.info(f"Gemini fallback enabled: {len(_gemini_clients)} key(s) configured.")
+else:
+    logger.warning("No Gemini API keys configured. Gemini fallback unavailable.")
+
+# Model configuration — OpenRouter models tried in order before Gemini
+MODEL_PRIMARY  = "dots-studio/dots-3-note-preview:free"
 MODEL_FALLBACK = "nvidia/nemotron-3-ultra-550b-a55b:free"
-MODELS = [MODEL_PRIMARY, MODEL_FALLBACK]  # Order: primary first, fallback second
+MODELS = [MODEL_PRIMARY, MODEL_FALLBACK]
 RATE_LIMIT_SECONDS = 2.0
 MAX_HISTORY = 20
 
@@ -660,23 +683,43 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en") -> str:
     for _ in range(15):
         response = None
         last_error = None
-        # Try each model in order; on error fall through to the next
-        for candidate_model in MODELS:
-            try:
-                response = await client.chat.completions.create(
-                    model=candidate_model,
-                    messages=messages,
-                    tools=TOOLS,
-                    tool_choice="auto",
-                    extra_body={"reasoning": {"enabled": True}}
-                )
-                active_model = candidate_model  # Remember which model succeeded
-                break  # Success — stop trying other models
-            except Exception as e:
-                last_error = e
-                logger.warning(f"Model '{candidate_model}' failed, trying next. Error: {e}")
+
+        # ── Tier 1 & 2: OpenRouter models ────────────────────────────────────
+        if client:
+            for candidate_model in MODELS:
+                try:
+                    response = await client.chat.completions.create(
+                        model=candidate_model,
+                        messages=messages,
+                        tools=TOOLS,
+                        tool_choice="auto",
+                        extra_body={"reasoning": {"enabled": True}}
+                    )
+                    active_model = candidate_model
+                    break
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"Model '{candidate_model}' failed, trying next. Error: {e}")
+
+        # ── Tier 3: Gemini fallback (when OpenRouter is rate-limited) ─────────
+        if response is None and _gemini_clients:
+            for idx, gemini_client in enumerate(_gemini_clients):
+                try:
+                    response = await gemini_client.chat.completions.create(
+                        model=GEMINI_MODEL,
+                        messages=messages,
+                        tools=TOOLS,
+                        tool_choice="auto",
+                    )
+                    active_model = f"gemini-key-{idx + 1}"
+                    logger.info(f"OpenRouter exhausted — using Gemini key {idx + 1}.")
+                    break
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"Gemini key {idx + 1} failed: {e}")
+
         if response is None:
-            logger.error(f"All models failed. Last error: {last_error}")
+            logger.error(f"All providers failed. Last error: {last_error}")
             return "⚠️ Sorry, I'm having trouble connecting to the AI service right now. Please try again later."
 
         response_message = response.choices[0].message
