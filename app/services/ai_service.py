@@ -17,15 +17,28 @@ logger = logging.getLogger(__name__)
 # {user_id: last_request_time (float)}
 _rate_limits = {}
 
-# ── OpenRouter client (primary + first fallback) ──────────────────────────────
-if settings.openrouter_api_key:
-    client = AsyncOpenAI(
-        api_key=settings.openrouter_api_key,
+# ── OpenRouter clients (primary + first fallback) ─────────────────────────────
+_OR_KEYS = [
+    k for k in [
+        settings.openrouter_api_key,
+        settings.openrouter_api_key1,
+        settings.openrouter_api_key2,
+        settings.openrouter_api_key3,
+        settings.openrouter_api_key4,
+        settings.openrouter_api_key5,
+    ] if k
+]
+_openrouter_clients = [
+    AsyncOpenAI(
+        api_key=key,
         base_url="https://openrouter.ai/api/v1"
     )
-else:
-    client = None
-    logger.warning("OPENROUTER_API_KEY is not set. AI agent features will not work.")
+    for key in _OR_KEYS
+]
+
+if not _openrouter_clients:
+    logger.warning("No OpenRouter API keys set. OpenRouter features will not work.")
+
 
 # ── Gemini clients (third-tier fallback, tried when OpenRouter 429s) ──────────
 # Uses Google's OpenAI-compatible endpoint so we can reuse AsyncOpenAI.
@@ -53,9 +66,10 @@ else:
     logger.warning("No Gemini API keys configured. Gemini fallback unavailable.")
 
 # Model configuration — OpenRouter models tried in order before Gemini
-MODEL_PRIMARY  = "dots-studio/dots-3-note-preview:free"
-MODEL_FALLBACK = "nvidia/nemotron-3-ultra-550b-a55b:free"
-MODELS = [MODEL_PRIMARY, MODEL_FALLBACK]
+MODEL_PRIMARY  = "z-ai/glm-5.2:free"
+MODEL_FALLBACK1 = "dots-studio/dots-3-note-preview:free"
+MODEL_FALLBACK2 = "nvidia/nemotron-3-ultra-550b-a55b:free"
+MODELS = [MODEL_PRIMARY, MODEL_FALLBACK1, MODEL_FALLBACK2]
 RATE_LIMIT_SECONDS = 2.0
 MAX_HISTORY = 20
 
@@ -685,21 +699,25 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en") -> str:
         last_error = None
 
         # ── Tier 1 & 2: OpenRouter models ────────────────────────────────────
-        if client:
+        if _openrouter_clients:
             for candidate_model in MODELS:
-                try:
-                    response = await client.chat.completions.create(
-                        model=candidate_model,
-                        messages=messages,
-                        tools=TOOLS,
-                        tool_choice="auto",
-                        extra_body={"reasoning": {"enabled": True}}
-                    )
-                    active_model = candidate_model
-                    break
-                except Exception as e:
-                    last_error = e
-                    logger.warning(f"Model '{candidate_model}' failed, trying next. Error: {e}")
+                for idx, or_client in enumerate(_openrouter_clients):
+                    try:
+                        response = await or_client.chat.completions.create(
+                            model=candidate_model,
+                            messages=messages,
+                            tools=TOOLS,
+                            tool_choice="auto",
+                            extra_body={"reasoning": {"enabled": True}}
+                        )
+                        active_model = candidate_model
+                        break  # Found a working key, stop trying other keys
+                    except Exception as e:
+                        last_error = e
+                        logger.warning(f"OpenRouter key {idx + 1} failed for '{candidate_model}'. Error: {e}")
+                
+                if response is not None:
+                    break  # Found a working model, stop trying other models
 
         # ── Tier 3: Gemini fallback (when OpenRouter is rate-limited) ─────────
         if response is None and _gemini_clients:

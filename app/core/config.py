@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     telegram_admin_user_id: int = Field(alias="admin", default=0)
 
     openrouter_api_key: str = ""
+    openrouter_api_key1: str = ""
+    openrouter_api_key2: str = ""
+    openrouter_api_key3: str = ""
+    openrouter_api_key4: str = ""
+    openrouter_api_key5: str = ""
 
     # Gemini API keys — used as fallback when OpenRouter hits daily rate limit
     gemini_ai_api1: str = ""
