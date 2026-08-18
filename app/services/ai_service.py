@@ -669,7 +669,7 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en") -> str:
     Checks rate limits, appends to conversation history, and calls OpenRouter API.
     Handles tool calling loop if the model decides to use tools.
     """
-    if not client:
+    if not _openrouter_clients and not _gemini_clients:
         return "⚠️ The AI service is currently unconfigured (missing API key)."
 
     # Enforce rate limit (1 request per RATE_LIMIT_SECONDS)
