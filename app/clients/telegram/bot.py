@@ -51,6 +51,14 @@ async def send_welcome_message(chat_id: int, lang: str):
     from app.clients.telegram.keyboards import get_main_reply_keyboard
     is_admin = (chat_id == settings.admin)
     
+    try:
+        sticker_set = await bot.get_sticker_set("hunterstar")
+        if sticker_set and sticker_set.stickers:
+            await bot.send_sticker(chat_id, sticker=sticker_set.stickers[0].file_id)
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to send sticker: {e}")
+        
     welcome_text = (
         f"🛰️ <b>{t('Welcome to Hunterstar File Transfer', lang)}</b>\n\n"
         f"{t('Hunterstar File Transfer is a service for convenient file transfer, storage, and sharing in one place.', lang)}\n\n"
