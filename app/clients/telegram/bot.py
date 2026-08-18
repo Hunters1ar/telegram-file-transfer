@@ -717,11 +717,13 @@ async def handle_coming_soon(callback: types.CallbackQuery):
 async def setup_bot_commands(bot_instance: Bot):
     user_commands = [
         types.BotCommand(command="start", description="Start the bot and show menu"),
+        types.BotCommand(command="tts", description="Convert text to voice 🎙️"),
         types.BotCommand(command="settings", description="Manage file visibility"),
         types.BotCommand(command="language", description="Change Language")
     ]
     admin_commands = [
         types.BotCommand(command="start", description="Start the bot and show menu"),
+        types.BotCommand(command="tts", description="Convert text to voice 🎙️"),
         types.BotCommand(command="settings", description="Manage file visibility"),
         types.BotCommand(command="language", description="Change Language"),
         types.BotCommand(command="admin", description="Open Admin Panel"),
