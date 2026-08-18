@@ -39,3 +39,4 @@ website/out/
 firebase-credentials*.json
 *-firebase-adminsdk*.json
 firebase-adminsdk*.json
+app/venice/firebase-serviceaccount.json
