@@ -1,10 +1,15 @@
 import time
 import logging
 import json
+import re
 from openai import AsyncOpenAI
 from app.core.config import settings
 from app.repositories.mongodb.conversation_repository import conversation_repository
 from app.repositories.mongodb.file_repository import file_repository
+from app.repositories.mongodb.folder_repository import folder_repository
+from app.domain.entities.folder import FolderMetadata
+from bson import ObjectId
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +37,35 @@ SYSTEM_PROMPT = """You are the AI assistant for Hunterstar File Transfer, a tele
 Your primary role is to help users manage their files, answer questions about the service, and assist them.
 You have access to tools to look up the user's files. Use them when the user asks about their uploads.
 Be helpful, natural, and friendly. While your focus is on file transfer, you can engage in normal conversation if it helps build rapport, but gently steer things back to your purpose if the conversation goes completely off-topic or becomes inappropriate."""
+
+# Validation helper
+def validate_name(name: str) -> str:
+    """Validates and sanitizes a folder or file name."""
+    if not name:
+        raise ValueError("Name cannot be empty.")
+    
+    # Strip whitespace
+    name = name.strip()
+    
+    # Check max length
+    if len(name) > 255:
+        raise ValueError("Name cannot exceed 255 characters.")
+        
+    # Reject path separators
+    if '/' in name or '\\' in name:
+        raise ValueError("Name cannot contain '/' or '\\'.")
+        
+    # Windows reserved names
+    reserved_names = {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+    }
+    base_name = name.split('.')[0].upper()
+    if base_name in reserved_names:
+        raise ValueError("This name is reserved and cannot be used.")
+        
+    return name
 
 # Tool schemas
 TOOLS = [
@@ -80,6 +114,89 @@ TOOLS = [
                 "required": ["share_id"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "rename_file",
+            "description": "Rename a specific file by its share_id.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "share_id": {
+                        "type": "string",
+                        "description": "The unique share ID of the file."
+                    },
+                    "new_name": {
+                        "type": "string",
+                        "description": "The new name for the file. Note: The tool automatically preserves the original extension unless you explicitly provide a different one."
+                    }
+                },
+                "required": ["share_id", "new_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_folder",
+            "description": "Create a new folder for the user (or returns the existing folder ID if it already exists).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "folder_name": {
+                        "type": "string",
+                        "description": "The name of the folder to create."
+                    }
+                },
+                "required": ["folder_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_folders",
+            "description": "List all folders owned by the user.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "move_file",
+            "description": "Move a specific file into a folder by their IDs.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "share_id": {
+                        "type": "string",
+                        "description": "The unique share ID of the file."
+                    },
+                    "folder_id": {
+                        "type": "string",
+                        "description": "The unique ID of the folder to move the file into. (Get this from list_folders or create_folder)"
+                    }
+                },
+                "required": ["share_id", "folder_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_storage_stats",
+            "description": "Get statistics about the user's storage usage, including total size, downloads, and a breakdown of files by category.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
     }
 ]
 
@@ -92,7 +209,7 @@ async def execute_tool_call(user_id: int, tool_call) -> str:
         arguments = {}
 
     if name == "list_user_files":
-        files = await file_repository.get_by_owner_id(user_id, limit=10)
+        files = await file_repository.get_by_owner_id(user_id, limit=20)
         if not files:
             return "No files found for this user."
         result = []
@@ -103,6 +220,7 @@ async def execute_tool_call(user_id: int, tool_call) -> str:
                 "type": getattr(f, "category", "document"),
                 "share_id": f.share_id,
                 "visibility": getattr(f.sharing, "mode", "private"),
+                "folder_id": f.folder_id,
                 "created_at": f.created_at.isoformat() if hasattr(f, "created_at") else "unknown"
             })
         return json.dumps(result)
@@ -119,11 +237,12 @@ async def execute_tool_call(user_id: int, tool_call) -> str:
                     "filename": f.original_filename,
                     "size_mb": round(f.size / (1024 * 1024), 2),
                     "type": getattr(f, "category", "document"),
-                    "share_id": f.share_id
+                    "share_id": f.share_id,
+                    "folder_id": f.folder_id
                 })
         if not matched:
             return f"No files matched the search query: {query}"
-        return json.dumps(matched[:10])  # limit results to top 10
+        return json.dumps(matched[:20])
 
     elif name == "get_file_info":
         share_id = arguments.get("share_id")
@@ -136,9 +255,84 @@ async def execute_tool_call(user_id: int, tool_call) -> str:
             "type": getattr(f, "category", "document"),
             "share_id": f.share_id,
             "visibility": getattr(f.sharing, "mode", "private"),
-            "is_favorite": getattr(f, "is_favorite", False)
+            "is_favorite": getattr(f, "is_favorite", False),
+            "folder_id": f.folder_id
         }
         return json.dumps(info)
+
+    elif name == "rename_file":
+        share_id = arguments.get("share_id")
+        new_name = arguments.get("new_name")
+        
+        f = await file_repository.get_by_share_id(share_id)
+        if not f or f.owner_id != user_id:
+            return "File not found or access denied."
+            
+        try:
+            clean_name = validate_name(new_name)
+        except ValueError as e:
+            return f"Error: {str(e)}"
+            
+        # Preserve extension if not provided in the new name
+        original_ext = f.extension
+        if original_ext and not clean_name.endswith(f".{original_ext}") and "." not in clean_name:
+            clean_name = f"{clean_name}.{original_ext}"
+            
+        f.original_filename = clean_name
+        await file_repository.update(f)
+        return f"Success. File renamed to '{clean_name}'"
+
+    elif name == "create_folder":
+        folder_name = arguments.get("folder_name")
+        try:
+            clean_name = validate_name(folder_name)
+        except ValueError as e:
+            return f"Error: {str(e)}"
+            
+        # Check if already exists
+        folders = await folder_repository.get_by_owner_id(user_id, limit=100)
+        for folder in folders:
+            if folder.name.lower() == clean_name.lower():
+                return f"Folder already exists. folder_id: {folder.id}"
+                
+        # Create new folder
+        new_folder = FolderMetadata(
+            _id=str(ObjectId()),
+            name=clean_name,
+            owner_id=user_id,
+            created_at=datetime.now(timezone.utc)
+        )
+        await folder_repository.save(new_folder)
+        return f"Success. Folder created. folder_id: {new_folder.id}"
+
+    elif name == "list_folders":
+        folders = await folder_repository.get_by_owner_id(user_id, limit=50)
+        if not folders:
+            return "No folders found."
+        
+        result = [{"id": folder.id, "name": folder.name} for folder in folders]
+        return json.dumps(result)
+
+    elif name == "move_file":
+        share_id = arguments.get("share_id")
+        folder_id = arguments.get("folder_id")
+        
+        f = await file_repository.get_by_share_id(share_id)
+        if not f or f.owner_id != user_id:
+            return "File not found or access denied."
+            
+        # Validate folder
+        folder = await folder_repository.get_by_id(folder_id)
+        if not folder or folder.owner_id != user_id:
+            return "Folder not found or access denied."
+            
+        f.folder_id = folder_id
+        await file_repository.update(f)
+        return "Success. File moved."
+
+    elif name == "get_storage_stats":
+        stats = await file_repository.get_user_stats(user_id)
+        return json.dumps(stats)
 
     else:
         return f"Unknown tool: {name}"
@@ -172,8 +366,8 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en") -> str:
     dynamic_system_prompt = SYSTEM_PROMPT + f"\nIMPORTANT: Always communicate with the user in their preferred language/locale code '{lang}', or whichever language they speak in. Do not default to English unless requested."
     messages = [{"role": "system", "content": dynamic_system_prompt}] + history
 
-    # We will do a loop to handle multiple tool calls if necessary (max 5 iterations to avoid infinite loops)
-    for _ in range(5):
+    # We will do a loop to handle multiple tool calls if necessary (max 15 iterations to avoid infinite loops)
+    for _ in range(15):
         try:
             response = await client.chat.completions.create(
                 model=MODEL,
@@ -235,5 +429,5 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en") -> str:
             else:
                 return "⚠️ Received an empty response from the AI."
                 
-    return "⚠️ The AI agent got stuck in a loop and couldn't complete the request."
+    return "⚠️ The AI agent exceeded its maximum operation limit. Please try splitting your request into smaller parts."
 

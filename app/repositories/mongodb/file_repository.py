@@ -83,34 +83,46 @@ class FileRepository:
     async def get_user_stats(self, owner_id: int) -> dict:
         pipeline = [
             {"$match": {"owner_id": owner_id}},
-            {"$group": {
-                "_id": None,
-                "total_files": {"$sum": 1},
-                "total_size": {"$sum": "$size"},
-                "total_downloads": {"$sum": "$download_count"},
-                "total_shared": {
-                    "$sum": {"$cond": [{"$eq": ["$sharing.mode", "public"]}, 1, 0]}
-                }
+            {"$facet": {
+                "totals": [
+                    {"$group": {
+                        "_id": None,
+                        "total_files": {"$sum": 1},
+                        "total_size": {"$sum": "$size"},
+                        "total_downloads": {"$sum": "$download_count"},
+                        "total_shared": {
+                            "$sum": {"$cond": [{"$eq": ["$sharing.mode", "public"]}, 1, 0]}
+                        }
+                    }}
+                ],
+                "categories": [
+                    {"$group": {"_id": "$category", "count": {"$sum": 1}}}
+                ]
             }}
         ]
         
         cursor = self.collection.aggregate(pipeline)
         result = await cursor.to_list(length=1)
         
-        if result:
-            stats = result[0]
-            return {
-                "total_files": stats.get("total_files", 0),
-                "total_size": stats.get("total_size", 0),
-                "total_downloads": stats.get("total_downloads", 0),
-                "total_shared": stats.get("total_shared", 0)
-            }
-            
-        return {
+        stats = {
             "total_files": 0,
             "total_size": 0,
             "total_downloads": 0,
-            "total_shared": 0
+            "total_shared": 0,
+            "files_by_type": {}
         }
+        
+        if result and result[0]["totals"]:
+            totals = result[0]["totals"][0]
+            stats["total_files"] = totals.get("total_files", 0)
+            stats["total_size"] = totals.get("total_size", 0)
+            stats["total_downloads"] = totals.get("total_downloads", 0)
+            stats["total_shared"] = totals.get("total_shared", 0)
+            
+            for cat in result[0].get("categories", []):
+                if cat["_id"]:
+                    stats["files_by_type"][cat["_id"]] = cat["count"]
+                    
+        return stats
 
 file_repository = FileRepository()
