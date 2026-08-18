@@ -764,7 +764,24 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en") -> str:
         )
 
     # Construct messages list with System prompt
-    dynamic_system_prompt = SYSTEM_PROMPT + relationship_context + f"\nIMPORTANT: Always communicate with the user in their preferred language/locale code '{lang}', or whichever language they speak in. Do not default to English unless requested."
+    user_profile_context = ""
+    if user:
+        display_name_parts = []
+        if user.first_name: display_name_parts.append(user.first_name)
+        if user.last_name:  display_name_parts.append(user.last_name)
+        display_name = " ".join(display_name_parts) if display_name_parts else "Unknown"
+        username_str = f"@{user.username}" if getattr(user, "username", None) else "no username set"
+        user_profile_context = (
+            "\n\n# Current User Profile\n"
+            f"- First name: {user.first_name or 'not set'}\n"
+            f"- Last name: {user.last_name or 'not set'}\n"
+            f"- Full name: {display_name}\n"
+            f"- Telegram username: {username_str}\n"
+            f"- Telegram ID: {user_id}\n"
+            "Use this information when the user asks you to say or speak their name, username, or ID."
+        )
+
+    dynamic_system_prompt = SYSTEM_PROMPT + relationship_context + user_profile_context + f"\nIMPORTANT: Always communicate with the user in their preferred language/locale code '{lang}', or whichever language they speak in. Do not default to English unless requested."
     messages = [{"role": "system", "content": dynamic_system_prompt}] + history
 
     # We will do a loop to handle multiple tool calls if necessary (max 15 iterations to avoid infinite loops)

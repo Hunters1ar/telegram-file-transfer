@@ -146,11 +146,16 @@ _SAY_AI_SUFFIXES: set[str] = {
     "something nice", "something clever", "something sweet", "something random",
     "anything", "whatever", "a joke", "a story", "a poem",
     "hello", "hi", "hey", "yo",
+    # Personal info — AI must look these up and speak the real values
+    "my username", "my name", "my full name", "my first name", "my last name",
+    "my id", "my user id", "my telegram id",
+    "my language", "my affection", "my level",
 }
 
 # Vague "speak" suffixes that mean AI_TTS
 _SPEAK_AI_SUFFIXES: set[str] = {
     "to me", "something", "anything", "please", "now",
+    "my username", "my name", "my id",
 }
 
 
