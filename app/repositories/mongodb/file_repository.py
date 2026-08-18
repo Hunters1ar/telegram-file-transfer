@@ -61,6 +61,14 @@ class FileRepository:
         docs = await cursor.to_list(length=limit)
         return [FileMetadata(**doc) for doc in docs]
 
+    async def search_files_by_name(self, owner_id: int, query: str, limit: int = 50) -> list[FileMetadata]:
+        cursor = self.collection.find({
+            "owner_id": owner_id,
+            "original_filename": {"$regex": query, "$options": "i"}
+        }).sort("uploaded_at", -1).limit(limit)
+        docs = await cursor.to_list(length=limit)
+        return [FileMetadata(**doc) for doc in docs]
+
     async def increment_downloads(self, share_id: str, current_time):
         await self.collection.update_one(
             {"share_id": share_id},

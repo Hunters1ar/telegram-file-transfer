@@ -3,6 +3,8 @@ import uuid
 from datetime import datetime, timezone
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 from app.core.config import settings
 from app.services.share_service import share_service
 from app.repositories.r2.upload import upload_file_to_r2
@@ -12,6 +14,9 @@ from app.clients.telegram.i18n import t, get_all_translations
 
 bot = Bot(token=settings.bot_token)
 dp = Dispatcher()
+
+class NamingState(StatesGroup):
+    waiting_for_name = State()
 
 def api_url(path: str) -> str:
     return f"{settings.api_base_url.rstrip('/')}{path}"
@@ -249,6 +254,60 @@ async def command_clearwhole_handler(message: types.Message) -> None:
     except Exception as e:
         await msg.edit_text(f"❌ Failed to clean system: {e}")
 
+@dp.message(F.sticker | F.animation)
+async def handle_sticker_animation(message: types.Message, state: FSMContext):
+    if message.sticker:
+        file_obj = message.sticker
+        category = "sticker"
+        mime_type = "image/webp" if not file_obj.is_animated and not file_obj.is_video else "application/x-tgsticker"
+    else:
+        file_obj = message.animation
+        category = "animation"
+        mime_type = getattr(file_obj, "mime_type", "video/mp4")
+        
+    size = getattr(file_obj, "file_size", 0)
+    
+    await state.update_data(
+        file_id=file_obj.file_id,
+        file_unique_id=file_obj.file_unique_id,
+        category=category,
+        mime_type=mime_type,
+        size=size
+    )
+    
+    await state.set_state(NamingState.waiting_for_name)
+    await message.reply(f"It looks like you sent a {category}. Ok, please give a name for it to add to your collection.")
+
+@dp.message(NamingState.waiting_for_name)
+async def handle_naming_sticker(message: types.Message, state: FSMContext):
+    if not message.text:
+        return await message.reply("Please send a text name.")
+        
+    data = await state.get_data()
+    from app.services.upload_service import upload_service
+    
+    file_meta = await upload_service.process_virtual_upload(
+        owner_id=message.from_user.id,
+        chat_id=message.chat.id,
+        original_filename=message.text.strip(),
+        mime_type=data["mime_type"],
+        size=data["size"],
+        category=data["category"],
+        telegram_file_id=data["file_id"],
+        telegram_unique_id=data["file_unique_id"]
+    )
+    
+    await state.clear()
+    
+    from app.clients.telegram.keyboards import get_file_card_keyboard
+    from app.clients.telegram.messages import format_file_card
+    
+    await message.reply(
+        text=f"✅ Saved! You can now send it by typing <code>@hunterstarfilebot {message.text.strip()}</code> anywhere.\n\n" + format_file_card(file_meta),
+        parse_mode="HTML",
+        reply_markup=get_file_card_keyboard(file_meta)
+    )
+
 @dp.message(F.document | F.video | F.audio | F.photo)
 async def handle_file_upload(message: types.Message):
     from app.domain.entities.user import User
@@ -358,6 +417,17 @@ def get_inline_result(file_meta):
             return types.InlineQueryResultCachedPhoto(
                 id=file_meta.share_id,
                 photo_file_id=file_meta.telegram_file_id
+            )
+        elif f_type == "sticker":
+            return types.InlineQueryResultCachedSticker(
+                id=file_meta.share_id,
+                sticker_file_id=file_meta.telegram_file_id
+            )
+        elif f_type == "animation":
+            return types.InlineQueryResultCachedMpeg4Gif(
+                id=file_meta.share_id,
+                mpeg4_file_id=file_meta.telegram_file_id,
+                title=title
             )
         else:
             return types.InlineQueryResultCachedDocument(
@@ -472,11 +542,18 @@ async def inline_query_handler(inline_query: types.InlineQuery):
         # Specific query by share_id
         file_meta = await file_repository.get_by_share_id(query)
         if not file_meta:
+            # Search by name instead
+            search_results = await file_repository.search_files_by_name(requester_id, query, limit=50)
+            if search_results:
+                results = [get_inline_result(f) for f in search_results]
+                await inline_query.answer(results, cache_time=5, is_personal=True)
+                return
+
             not_found = types.InlineQueryResultArticle(
                 id="not_found",
                 title="File not found",
-                description="Invalid Share ID",
-                input_message_content=types.InputTextMessageContent(message_text="Invalid Share ID")
+                description="No matching file or invalid Share ID",
+                input_message_content=types.InputTextMessageContent(message_text="File not found")
             )
             await inline_query.answer([not_found], cache_time=5)
             return
