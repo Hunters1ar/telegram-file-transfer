@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     r2_bucket_name: str
     r2_endpoint: str
     admin: int
+    openrouter_api_key: str = ""
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

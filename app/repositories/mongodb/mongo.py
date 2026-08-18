@@ -41,6 +41,13 @@ async def connect_to_mongo():
             await user_repository.create_indexes()
         except Exception as e:
             logger.exception("Failed to create user indexes: %s", e)
+            
+        from app.repositories.mongodb.conversation_repository import conversation_repository
+        
+        try:
+            await conversation_repository.create_indexes()
+        except Exception as e:
+            logger.exception("Failed to create conversation indexes: %s", e)
 
     except ServerSelectionTimeoutError as e:
         logger.error(

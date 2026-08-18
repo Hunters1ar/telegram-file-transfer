@@ -633,3 +633,26 @@ async def setup_bot_ui(bot_instance: Bot):
 async def start_polling():
     await setup_bot_ui(bot)
     await dp.start_polling(bot)
+
+# ==========================================
+# AI Agent Fallback Handler
+# MUST REMAIN AT THE BOTTOM OF THE FILE
+# ==========================================
+@dp.message(F.text)
+async def ai_agent_fallback_handler(message: types.Message):
+    # Ignore messages from the admin that look like commands but aren't registered
+    if message.text.startswith('/'):
+        return
+
+    # Show typing indicator
+    await bot.send_chat_action(chat_id=message.chat.id, action="typing")
+    
+    from app.services.ai_service import ask_agent
+    
+    try:
+        response = await ask_agent(message.from_user.id, message.text)
+        await message.answer(response, parse_mode="HTML")
+    except Exception as e:
+        import logging
+        logging.error(f"Error in AI handler: {e}")
+        await message.answer("⚠️ An unexpected error occurred while communicating with the AI agent.")
