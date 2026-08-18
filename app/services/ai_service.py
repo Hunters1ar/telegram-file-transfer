@@ -143,7 +143,7 @@ async def execute_tool_call(user_id: int, tool_call) -> str:
     else:
         return f"Unknown tool: {name}"
 
-async def ask_agent(user_id: int, user_message: str) -> str:
+async def ask_agent(user_id: int, user_message: str, lang: str = "en") -> str:
     """
     Handles user interaction with the AI agent.
     Checks rate limits, appends to conversation history, and calls OpenRouter API.
@@ -169,7 +169,8 @@ async def ask_agent(user_id: int, user_message: str) -> str:
     history = await conversation_repository.get_history(user_id, limit=MAX_HISTORY)
     
     # Construct messages list with System prompt
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
+    dynamic_system_prompt = SYSTEM_PROMPT + f"\nIMPORTANT: Always communicate with the user in their preferred language/locale code '{lang}', or whichever language they speak in. Do not default to English unless requested."
+    messages = [{"role": "system", "content": dynamic_system_prompt}] + history
 
     # We will do a loop to handle multiple tool calls if necessary (max 5 iterations to avoid infinite loops)
     for _ in range(5):

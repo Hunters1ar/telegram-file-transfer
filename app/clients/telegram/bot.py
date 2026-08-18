@@ -649,9 +649,12 @@ async def ai_agent_fallback_handler(message: types.Message):
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     
     from app.services.ai_service import ask_agent
+    from app.repositories.mongodb.user_repository import user_repository
     
     try:
-        response = await ask_agent(message.from_user.id, message.text)
+        user = await user_repository.get_by_telegram_id(message.from_user.id)
+        lang = user.language if user and user.language else "en"
+        response = await ask_agent(message.from_user.id, message.text, lang=lang)
         await thinking_msg.edit_text(response, parse_mode="HTML")
     except Exception as e:
         import logging
