@@ -33,7 +33,7 @@
       <input type="text" placeholder="Search or run a command..." id="cmd-input" autocomplete="off" data-i18n>
     </div>
     <div class="cmd-results">
-      <div class="cmd-item" data-action="upload"><span>⬆</span> <span data-i18n>Upload File</span></div>
+      <div class="cmd-item" data-action="upload"><span><i class="ph ph-upload-simple"></i></span> <span data-i18n>Upload File</span></div>
       <div class="cmd-item" data-action="folder"><span><img src="icons/folders-icon.webp" class="svg-icon" alt="folders-icon"></span> <span data-i18n>Create Folder</span></div>
       <div class="cmd-item" data-action="settings"><span><img src="icons/settings-icon.webp" class="svg-icon" alt="settings-icon"></span> <span data-i18n>Settings</span></div>
       <div class="cmd-item" data-action="analytics"><span><img src="icons/stats-icon.webp" class="svg-icon" alt="stats-icon"></span> <span data-i18n>Analytics</span></div>
@@ -90,8 +90,8 @@
       <div class="topbar-actions">
         <button class="topbar-btn" id="header-lang-btn" title="Change Language"><img src="icons/translatebutton.webp" class="svg-icon" alt="translate-icon"></button>
         <button class="topbar-btn theme-toggle-btn" id="header-theme-btn" title="Toggle Theme" aria-label="Toggle theme">
-          <span class="theme-icon-sun" aria-hidden="true">☀️</span>
-          <span class="theme-icon-moon" aria-hidden="true">🌙</span>
+          <span class="theme-icon-sun" aria-hidden="true"><i class="ph ph-sun"></i></span>
+          <span class="theme-icon-moon" aria-hidden="true"><i class="ph ph-moon"></i></span>
         </button>
         <button class="topbar-btn"><img src="icons/notification-icon.webp" class="svg-icon" alt="notification-icon"></button>
       </div>
@@ -124,7 +124,7 @@
         <div class="pro-dropzone" id="dropzone">
           <input type="file" id="file-input" multiple hidden>
           <div class="dz-content" id="dz-default">
-            <span class="dz-icon-large">⬆</span>
+            <span class="dz-icon-large"><i class="ph ph-upload-simple"></i></span>
             <h3 data-i18n>Drop files here</h3>
             <p><span data-i18n>or</span> <button id="browse-btn" data-i18n>Choose File</button></p>
             <span class="dz-limit" data-i18n>Supports files up to 100 GB</span>
@@ -137,7 +137,7 @@
           
           <!-- Upload Success -->
           <div class="dz-success" id="dz-success" hidden>
-            <span class="success-icon">✅</span>
+            <span class="success-icon"><i class="ph ph-check-circle"></i></span>
             <h3 data-i18n>Upload Complete</h3>
             <p id="success-filename" class="success-file">project.zip</p>
             <p id="success-id" class="success-id">🆔 X231CDS</p>
@@ -157,7 +157,7 @@
           <div class="file-list" id="main-file-list">
             <!-- Empty State default -->
             <div class="empty-state" id="empty-state">
-              <span class="empty-icon">📁</span>
+              <span class="empty-icon"><i class="ph ph-folder"></i></span>
               <p data-i18n>No files yet.</p>
               <button class="empty-btn" onclick="document.getElementById('file-input').click()" data-i18n>Upload your first file</button>
             </div>
@@ -257,10 +257,10 @@
             </div>
             <div class="theme-toggle" role="group" aria-label="Theme">
               <button id="theme-btn-light" onclick="setTheme('light')">
-                ☀️ <span data-i18n>Light</span>
+                <i class="ph ph-sun"></i> <span data-i18n>Light</span>
               </button>
               <button id="theme-btn-dark" onclick="setTheme('dark')">
-                🌙 <span data-i18n>Dark</span>
+                <i class="ph ph-moon"></i> <span data-i18n>Dark</span>
               </button>
             </div>
           </div>
