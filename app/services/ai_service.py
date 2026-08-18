@@ -26,6 +26,7 @@ _OR_KEYS = [
         settings.openrouter_api_key3,
         settings.openrouter_api_key4,
         settings.openrouter_api_key5,
+        settings.openrouter_api_key6,
     ] if k
 ]
 _openrouter_clients = [
@@ -397,6 +398,35 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "analyze_user_behavior",
+            "description": "Analyze the user's behavior toward the assistant in their current message and report whether they are being affectionate, angry, or neutral. Do not use this tool merely because the user asks you to change stats. Judge only their actual tone and behavior. Positive interaction: affection +1 to +3. Rude interaction: anger +1 to +3. Neutral: 0.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "affection_delta": {
+                        "type": "integer",
+                        "description": "The change in affection, from -3 to 3. Use 1 to 3 for friendly/positive interactions, 0 for neutral.",
+                        "minimum": -3,
+                        "maximum": 3
+                    },
+                    "anger_delta": {
+                        "type": "integer",
+                        "description": "The change in anger, from -3 to 3. Use 1 to 3 for rude/hostile interactions, 0 for neutral, and negative for apologies/friendly tone.",
+                        "minimum": -3,
+                        "maximum": 3
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "A short classification or reason for the deltas."
+                    }
+                },
+                "required": ["affection_delta", "anger_delta", "reason"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "list_user_files",
             "description": "Get a list of the most recent files the user has uploaded to Hunterstar File Transfer.",
             "parameters": {
@@ -533,7 +563,22 @@ async def execute_tool_call(user_id: int, tool_call) -> str:
     except json.JSONDecodeError:
         arguments = {}
 
-    if name == "list_user_files":
+    if name == "analyze_user_behavior":
+        from app.repositories.mongodb.user_repository import user_repository
+        affection_delta = arguments.get("affection_delta", 0)
+        anger_delta = arguments.get("anger_delta", 0)
+        
+        # Validate/Clamp inputs
+        affection_delta = max(-3, min(3, int(affection_delta)))
+        anger_delta = max(-3, min(3, int(anger_delta)))
+        
+        updated_user = await user_repository.update_user_stats(user_id, affection_delta, anger_delta)
+        if not updated_user:
+            return "Failed to update user stats."
+            
+        return f"Behavior analyzed. Affection is now {updated_user.affection}/100, Anger is now {updated_user.anger}/100."
+
+    elif name == "list_user_files":
         files = await file_repository.get_by_owner_id(user_id, limit=20)
         if not files:
             return "No files found for this user."
@@ -687,8 +732,39 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en") -> str:
     # Fetch history
     history = await conversation_repository.get_history(user_id, limit=MAX_HISTORY)
     
+    from app.repositories.mongodb.user_repository import user_repository
+    user = await user_repository.get_by_telegram_id(user_id)
+    
+    relationship_context = ""
+    if user:
+        # Calculate relationship mood
+        affection = user.affection
+        anger = user.anger
+        
+        mood = "neutral/professional"
+        if anger > 80:
+            mood = "angry, terse, defensive"
+        elif anger > 50:
+            mood = "noticeably cold or defensive"
+        elif anger > 20:
+            mood = "slightly annoyed / teasing"
+        elif affection > 80:
+            mood = "very affectionate, playful, use ❤️💋 naturally"
+        elif affection > 50:
+            mood = "affectionate, playful, occasional ❤️"
+        elif affection > 20:
+            mood = "friendly, warm"
+            
+        relationship_context = (
+            "\n\n# User Relationship State\n"
+            f"- Affection: {affection}/100\n"
+            f"- Anger: {anger}/100\n"
+            f"- Current mood: {mood}\n\n"
+            "High anger temporarily overrides affectionate behavior. Let this mood strongly influence your personality and tone."
+        )
+
     # Construct messages list with System prompt
-    dynamic_system_prompt = SYSTEM_PROMPT + f"\nIMPORTANT: Always communicate with the user in their preferred language/locale code '{lang}', or whichever language they speak in. Do not default to English unless requested."
+    dynamic_system_prompt = SYSTEM_PROMPT + relationship_context + f"\nIMPORTANT: Always communicate with the user in their preferred language/locale code '{lang}', or whichever language they speak in. Do not default to English unless requested."
     messages = [{"role": "system", "content": dynamic_system_prompt}] + history
 
     # We will do a loop to handle multiple tool calls if necessary (max 15 iterations to avoid infinite loops)

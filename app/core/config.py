@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     openrouter_api_key3: str = ""
     openrouter_api_key4: str = ""
     openrouter_api_key5: str = ""
+    openrouter_api_key6: str = ""
 
     # Gemini API keys — used as fallback when OpenRouter hits daily rate limit
     gemini_ai_api1: str = ""
@@ -46,6 +47,11 @@ class Settings(BaseSettings):
     venice_model: str = "llama-3.3-70b"
     # Number of requests each Venice API key may make per calendar day
     venice_daily_limit: int = 10
+
+    # ── Text-to-Speech (Deepgram Flux TTS via OpenRouter) ────────────────────
+    tts_enabled: bool = True
+    tts_model: str = "deepgram/flux-tts:free"
+    tts_voice: str = "flux-alexis-en"
 
     # ── Firebase Admin SDK ───────────────────────────────────────────────────
     # Path to the service account JSON on the server — never commit the file itself

@@ -812,10 +812,59 @@ async def command_shadow_status(message: types.Message):
         await message.answer("⚠️ Could not retrieve Shadow Mode status.")
 
 # ==========================================
-# AI Agent Fallback Handler
+# TTS + AI Agent Fallback Handlers
 # MUST REMAIN AT THE BOTTOM OF THE FILE
-# Shadow Mode detection lives here ONLY — never in middleware or other handlers.
+# Shadow Mode detection lives in ai_agent_fallback_handler ONLY.
 # ==========================================
+
+async def _send_voice_or_fallback(
+    message: types.Message,
+    text: str,
+    fallback_label: str = "",
+) -> None:
+    """
+    Try to synthesize *text* and send as a Telegram voice note.
+    If TTS fails, send the plain text with a short notice instead.
+    """
+    from app.services.tts_service import tts_service, TTSError
+
+    try:
+        audio_bytes = await tts_service.synthesize(text)
+        voice_file = types.BufferedInputFile(audio_bytes, filename="voice.mp3")
+        await message.answer_voice(voice_file)
+    except (TTSError, ValueError) as tts_exc:
+        import logging as _log
+        _log.warning("TTS failed, falling back to text. Reason: %s", tts_exc)
+        notice = "\n\n<i>🔇 Couldn't generate audio — here's the text instead.</i>" if not fallback_label else f"\n\n<i>🔇 {fallback_label}</i>"
+        await message.answer(markdown_to_html(text) + notice, parse_mode="HTML")
+
+
+@dp.message(Command("tts"))
+async def command_tts_handler(message: types.Message) -> None:
+    """
+    /tts <text>  →  Telegram voice note of <text>.
+    Bypasses the AI entirely.
+    """
+    from app.core.config import settings as _s
+    if not _s.tts_enabled:
+        await message.answer("🔇 TTS is currently disabled.")
+        return
+
+    # Strip the command itself to get the body
+    body = message.text[len("/tts"):].strip() if message.text else ""
+
+    if not body:
+        await message.answer(
+            "ℹ️ Usage: <code>/tts Hello world!</code>\n"
+            "Send any text after the command and I'll speak it for you. 🎙️",
+            parse_mode="HTML",
+        )
+        return
+
+    await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
+    await _send_voice_or_fallback(message, body)
+
+
 @dp.message(F.text)
 async def ai_agent_fallback_handler(message: types.Message):
     # Ignore unregistered slash commands
@@ -865,7 +914,49 @@ async def ai_agent_fallback_handler(message: types.Message):
             import logging
             logging.error(f"Shadow deactivation check failed for {message.from_user.id}: {e}")
 
-    # Send thinking sticker while AI processes
+    # ── 3. Pre-fetch shadow state once (used by both TTS and AI branches) ─────
+    shadow_active = False
+    try:
+        shadow_active = await get_shadow_active(message.from_user.id)
+    except Exception:
+        pass
+
+    # ── 4. TTS intent detection (only when Shadow Mode is OFF) ────────────────
+    from app.core.config import settings as _s
+    if not shadow_active and _s.tts_enabled:
+        from app.services.tts_service import detect_tts_intent, TTSIntentKind
+
+        tts_intent = detect_tts_intent(message.text)
+
+        if tts_intent.kind == TTSIntentKind.DIRECT_TTS:
+            # User supplied the text — skip the AI entirely.
+            await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
+            await _send_voice_or_fallback(message, tts_intent.text)
+            return
+
+        if tts_intent.kind == TTSIntentKind.AI_TTS:
+            # Let the AI craft the reply, then speak it aloud.
+            try:
+                thinking_msg = await message.answer_sticker("CAACAgIAAxUAAWqDy_T--ZTKHa7kh8YqbDAAAeIqRwACKpoAAkJqIEhMY1khmFrSKz0E")
+            except Exception:
+                thinking_msg = await message.answer("💭 <i>Thinking...</i>", parse_mode="HTML")
+            await bot.send_chat_action(chat_id=message.chat.id, action="typing")
+
+            try:
+                user = await user_repository.get_by_telegram_id(message.from_user.id)
+                lang = user.language if user and user.language else "en"
+                ai_text = await ask_agent(message.from_user.id, message.text, lang=lang)
+                await thinking_msg.delete()
+                await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
+                await _send_voice_or_fallback(message, ai_text)
+            except Exception as e:
+                import logging
+                logging.error(f"AI_TTS handler error for {message.from_user.id}: {e}")
+                await thinking_msg.delete()
+                await message.answer("⚠️ An unexpected error occurred. Please try again.")
+            return
+
+    # ── 5. Normal flow: text response only ───────────────────────────────────
     try:
         thinking_msg = await message.answer_sticker("CAACAgIAAxUAAWqDy_T--ZTKHa7kh8YqbDAAAeIqRwACKpoAAkJqIEhMY1khmFrSKz0E")
     except Exception:
@@ -876,8 +967,6 @@ async def ai_agent_fallback_handler(message: types.Message):
         user = await user_repository.get_by_telegram_id(message.from_user.id)
         lang = user.language if user and user.language else "en"
 
-        # ── 3. Route: Shadow AI or Normal AI ─────────────────────────────────
-        shadow_active = await get_shadow_active(message.from_user.id)
         if shadow_active:
             response = await ask_venice(message.from_user.id, message.text, lang=lang)
         else:

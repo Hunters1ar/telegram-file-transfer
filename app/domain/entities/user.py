@@ -12,4 +12,8 @@ class User(BaseModel):
     last_name: Optional[str] = None
     language: Optional[str] = None
     show_others_files: bool = True
+    affection: int = Field(default=0, ge=0, le=100)
+    anger: int = Field(default=0, ge=0, le=100)
+    last_affection_update: Optional[datetime] = None
+    last_anger_update: Optional[datetime] = None
     created_at: datetime = Field(default_factory=get_utc_now)

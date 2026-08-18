@@ -368,8 +368,40 @@ async def ask_venice(user_id: int, user_message: str, lang: str = "en") -> str:
 
     history = await conversation_repository.get_history(user_id, limit=20, source="shadow")
 
+    from app.repositories.mongodb.user_repository import user_repository
+    user = await user_repository.get_by_telegram_id(user_id)
+    
+    relationship_context = ""
+    if user:
+        # Calculate relationship mood
+        affection = user.affection
+        anger = user.anger
+        
+        mood = "neutral/professional"
+        if anger > 80:
+            mood = "angry, terse, defensive"
+        elif anger > 50:
+            mood = "noticeably cold or defensive"
+        elif anger > 20:
+            mood = "slightly annoyed / teasing"
+        elif affection > 80:
+            mood = "very affectionate, playful, use ❤️💋 naturally"
+        elif affection > 50:
+            mood = "affectionate, playful, occasional ❤️"
+        elif affection > 20:
+            mood = "friendly, warm"
+            
+        relationship_context = (
+            "\n\n# User Relationship State\n"
+            f"- Affection: {affection}/100\n"
+            f"- Anger: {anger}/100\n"
+            f"- Current mood: {mood}\n\n"
+            "High anger temporarily overrides affectionate behavior. Let this mood strongly influence your personality and tone."
+        )
+
     dynamic_prompt = (
         SHADOW_SYSTEM_PROMPT
+        + relationship_context
         + f"\nIMPORTANT: Respond in the user's language/locale '{lang}' "
           f"unless they write in a different language."
     )
