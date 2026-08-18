@@ -49,6 +49,9 @@ def markdown_to_html(text: str) -> str:
 class NamingState(StatesGroup):
     waiting_for_name = State()
 
+class TTSState(StatesGroup):
+    waiting_for_text = State()
+
 def api_url(path: str) -> str:
     return f"{settings.api_base_url.rstrip('/')}{path}"
 
@@ -842,9 +845,10 @@ async def _send_voice_or_fallback(
 
 
 @dp.message(Command("tts"))
-async def command_tts_handler(message: types.Message) -> None:
+async def command_tts_handler(message: types.Message, state: FSMContext) -> None:
     """
-    /tts <text>  →  Telegram voice note of <text>.
+    /tts <text>  ->  Telegram voice note of <text>.
+    /tts alone   ->  Enter waiting state; the next message will be spoken.
     Bypasses the AI entirely.
     """
     from app.core.config import settings as _s
@@ -856,15 +860,29 @@ async def command_tts_handler(message: types.Message) -> None:
     body = message.text[len("/tts"):].strip() if message.text else ""
 
     if not body:
+        # Enter FSM state — next message will be spoken as voice
+        await state.set_state(TTSState.waiting_for_text)
         await message.answer(
-            "ℹ️ Usage: <code>/tts Hello world!</code>\n"
-            "Send any text after the command and I'll speak it for you. 🎙️",
+            "🎙️ <b>TTS mode active!</b>\n"
+            "Send me any text and I'll speak it for you.",
             parse_mode="HTML",
         )
         return
 
     await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
     await _send_voice_or_fallback(message, body)
+
+
+@dp.message(TTSState.waiting_for_text)
+async def handle_tts_awaited_text(message: types.Message, state: FSMContext) -> None:
+    """Handles the text message that follows a bare /tts command."""
+    await state.clear()
+    text = (message.text or "").strip()
+    if not text:
+        await message.answer("⚠️ Please send some text to speak.")
+        return
+    await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
+    await _send_voice_or_fallback(message, text)
 
 
 @dp.message(F.text)

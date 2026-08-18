@@ -102,40 +102,78 @@ _AI_TTS_PHRASES: list[str] = [
     "send a voice",
 ]
 
+# Vague "say" suffixes that mean "AI decides what to say" rather than a literal text
+_SAY_AI_SUFFIXES: set[str] = {
+    "something", "something funny", "something interesting", "something cool",
+    "something nice", "something clever", "something sweet", "something random",
+    "anything", "whatever", "a joke", "a story", "a poem",
+    "hello", "hi", "hey", "yo",
+}
+
+# Vague "speak" suffixes that mean AI_TTS
+_SPEAK_AI_SUFFIXES: set[str] = {
+    "to me", "something", "anything", "please", "now",
+}
+
 
 def detect_tts_intent(text: str) -> TTSIntent:
     """
     Returns a TTSIntent describing what the bot should do.
 
     Rules (evaluated in order):
-      1. /tts <body>              → DIRECT_TTS(body)
-      2. <direct trigger> <body>  → DIRECT_TTS(body)
-      3. Exact conversational TTS phrase → AI_TTS
-      4. Anything else            → NONE
+      1. /tts <body>              -> DIRECT_TTS(body)
+      2. /tts alone               -> NONE  (bot handles via FSM state)
+      3. <direct trigger> <body>  -> DIRECT_TTS(body)
+      4. say <vague>              -> AI_TTS
+      5. say <specific text>      -> DIRECT_TTS(specific text)
+      6. speak <vague>            -> AI_TTS
+      7. speak <specific text>    -> DIRECT_TTS(specific text)
+      8. Exact conversational TTS phrase -> AI_TTS
+      9. Anything else            -> NONE
     """
     stripped = text.strip()
     lower = stripped.lower()
 
-    # ── Rule 1: /tts command ──────────────────────────────────────────────────
+    # -- Rule 1 & 2: /tts command ----------------------------------------------
     if lower.startswith("/tts"):
         body = stripped[4:].strip()
         if body:
             return TTSIntent(kind=TTSIntentKind.DIRECT_TTS, text=body)
-        # /tts with no text → treat as AI_TTS (ask AI to say something)
-        return TTSIntent(kind=TTSIntentKind.AI_TTS)
+        return TTSIntent(kind=TTSIntentKind.NONE)   # FSM handles /tts alone
 
-    # ── Rule 2: Direct-extract triggers ──────────────────────────────────────
+    # -- Rule 3: Direct-extract triggers ---------------------------------------
     for trigger in _DIRECT_TRIGGERS:
         if lower.startswith(trigger):
             body = stripped[len(trigger):].strip()
             if body:
                 return TTSIntent(kind=TTSIntentKind.DIRECT_TTS, text=body)
 
-    # ── Rule 3: Conversational TTS phrases (full-string match only) ───────────
-    # We compare against the full lowercased message to avoid false positives
-    # like "what did you say about the upload system?"
+    # -- Rules 4 & 5: "say <text>" ---------------------------------------------
+    # Must start the whole message (avoids "what did you say about X?")
+    if lower.startswith("say "):
+        remainder = stripped[4:].strip()
+        remainder_lower = remainder.lower().rstrip("!?.")
+        if remainder_lower in _SAY_AI_SUFFIXES:
+            return TTSIntent(kind=TTSIntentKind.AI_TTS)
+        if remainder:
+            return TTSIntent(kind=TTSIntentKind.DIRECT_TTS, text=remainder)
+
+    # -- Rules 6 & 7: "speak <text>" ------------------------------------------
+    if lower.startswith("speak "):
+        remainder = stripped[6:].strip()
+        remainder_lower = remainder.lower().rstrip("!?.")
+        if remainder_lower in _SPEAK_AI_SUFFIXES:
+            return TTSIntent(kind=TTSIntentKind.AI_TTS)
+        if remainder:
+            return TTSIntent(kind=TTSIntentKind.DIRECT_TTS, text=remainder)
+
+    # -- Rule 8: Exact conversational TTS phrases ------------------------------
     for phrase in _AI_TTS_PHRASES:
-        if lower == phrase or lower.startswith(phrase + " ") or lower.startswith(phrase + "!") or lower.startswith(phrase + "?") or lower.startswith(phrase + "."):
+        if (lower == phrase
+                or lower.startswith(phrase + " ")
+                or lower.startswith(phrase + "!")
+                or lower.startswith(phrase + "?")
+                or lower.startswith(phrase + ".")):
             return TTSIntent(kind=TTSIntentKind.AI_TTS)
 
     return TTSIntent(kind=TTSIntentKind.NONE)
