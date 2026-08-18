@@ -66,10 +66,9 @@ else:
     logger.warning("No Gemini API keys configured. Gemini fallback unavailable.")
 
 # Model configuration — OpenRouter models tried in order before Gemini
-MODEL_PRIMARY  = "z-ai/glm-5.2:free"
-MODEL_FALLBACK1 = "dots-studio/dots-3-note-preview:free"
-MODEL_FALLBACK2 = "nvidia/nemotron-3-ultra-550b-a55b:free"
-MODELS = [MODEL_PRIMARY, MODEL_FALLBACK1, MODEL_FALLBACK2]
+MODEL_PRIMARY  = "dots-studio/dots-3-note-preview:free"
+MODEL_FALLBACK = "nvidia/nemotron-3-ultra-550b-a55b:free"
+MODELS = [MODEL_PRIMARY, MODEL_FALLBACK]
 RATE_LIMIT_SECONDS = 2.0
 MAX_HISTORY = 20
 

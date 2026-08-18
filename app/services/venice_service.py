@@ -451,8 +451,8 @@ async def ask_venice(user_id: int, user_message: str, lang: str = "en") -> str:
 
         except APIStatusError as exc:
             status = exc.status_code
-            if status in (401, 403):
-                # Invalid/forbidden key — skip it permanently for this request
+            if status in (401, 402, 403):
+                # Invalid/forbidden/insufficient funds key — skip it permanently for this request
                 logger.warning(f"Venice slot {slot} returned {status}: {exc.message}")
                 excluded_slots.append(slot)
                 continue
