@@ -57,12 +57,10 @@ async def send_welcome_message(chat_id: int, lang: str):
     is_admin = (chat_id == settings.admin)
     
     try:
-        sticker_set = await bot.get_sticker_set("hunterstar")
-        if sticker_set and sticker_set.stickers:
-            await bot.send_sticker(chat_id, sticker=sticker_set.stickers[0].file_id)
+        await bot.send_sticker(chat_id, sticker="CAACAgIAAxUAAWqDtCg6hAF9t12ZmiXZe3MQjfbEAAKBlgAC1C7gS3CRkIli2NC_PQQ")
     except Exception as e:
         import logging
-        logging.error(f"Failed to send sticker: {e}")
+        logging.error(f"Failed to send start sticker: {e}")
         
     welcome_text = (
         f"🛰️ <b>{t('Welcome to Hunterstar File Transfer', lang)}</b>\n\n"
@@ -202,6 +200,12 @@ async def command_settings_handler(message: types.Message):
     show_others = getattr(user, 'show_others_files', True) if user else True
     lang = user.language if user and user.language else "en"
     
+    try:
+        await message.answer_sticker(sticker="CAACAgIAAxUAAWqDy_S7KzGo0vy0_Ctf6DI8rYhjAAKp6QACHaAgSFg2W-4xtcqvPQQ")
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to send settings sticker: {e}")
+    
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
     text = f"{t('See others files', lang)} (✅)" if show_others else f"{t('See others files', lang)} (❌)"
@@ -336,7 +340,10 @@ async def handle_file_upload(message: types.Message):
         return
 
     # Acknowledge receipt
-    msg = await message.reply("Downloading file from Telegram...")
+    try:
+        msg = await message.answer_sticker("CAACAgIAAxUAAWqDy_SEyGbgd58sTpNtE-zy-dBrAAKAnQAC0DohSK4gWejez-s-PQQ")
+    except Exception:
+        msg = await message.reply("Downloading file from Telegram...")
     
     # Original filename, mime_type, and size
     original_filename = getattr(file_obj, "file_name", f"{file_obj.file_unique_id}.bin")
@@ -353,13 +360,15 @@ async def handle_file_upload(message: types.Message):
     limit_mb = await settings_repository.get_global_file_limit()
     
     if size > limit_mb * 1024 * 1024:
-        await msg.edit_text(f"❌ This file is too large! The current limit is {limit_mb}MB.")
+        await msg.delete()
+        await message.answer(f"❌ This file is too large! The current limit is {limit_mb}MB.")
         return
 
     try:
         file_info = await bot.get_file(file_obj.file_id)
     except Exception as e:
-        await msg.edit_text(f"❌ Failed to get file info: {e}")
+        await msg.delete()
+        await message.answer(f"❌ Failed to get file info: {e}")
         return
         
     file_stream = io.BytesIO()
@@ -383,7 +392,8 @@ async def handle_file_upload(message: types.Message):
     )
     
     # File is too large for native Telegram send, use File Details card
-    await msg.edit_text(
+    await msg.delete()
+    await message.answer(
         text=format_file_card(file_meta), 
         parse_mode="HTML",
         reply_markup=get_file_card_keyboard(file_meta)
@@ -721,8 +731,11 @@ async def ai_agent_fallback_handler(message: types.Message):
     if message.text.startswith('/'):
         return
 
-    # Send a temporary thinking message
-    thinking_msg = await message.answer("💭 <i>Thinking...</i>", parse_mode="HTML")
+    # Send thinking sticker while AI processes
+    try:
+        thinking_msg = await message.answer_sticker("CAACAgIAAxUAAWqDy_T--ZTKHa7kh8YqbDAAAeIqRwACKpoAAkJqIEhMY1khmFrSKz0E")
+    except Exception:
+        thinking_msg = await message.answer("💭 <i>Thinking...</i>", parse_mode="HTML")
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     
     from app.services.ai_service import ask_agent
@@ -732,8 +745,10 @@ async def ai_agent_fallback_handler(message: types.Message):
         user = await user_repository.get_by_telegram_id(message.from_user.id)
         lang = user.language if user and user.language else "en"
         response = await ask_agent(message.from_user.id, message.text, lang=lang)
-        await thinking_msg.edit_text(response, parse_mode="HTML")
+        await thinking_msg.delete()
+        await message.answer(response, parse_mode="HTML")
     except Exception as e:
         import logging
         logging.error(f"Error in AI handler: {e}")
-        await thinking_msg.edit_text("⚠️ An unexpected error occurred while communicating with the AI agent.", parse_mode="HTML")
+        await thinking_msg.delete()
+        await message.answer("⚠️ An unexpected error occurred while communicating with the AI agent.", parse_mode="HTML")
