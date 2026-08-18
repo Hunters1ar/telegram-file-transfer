@@ -1,4 +1,5 @@
 import io
+import re
 import uuid
 from datetime import datetime, timezone
 from aiogram import Bot, Dispatcher, types, F
@@ -14,6 +15,36 @@ from app.clients.telegram.i18n import t, get_all_translations
 
 bot = Bot(token=settings.bot_token)
 dp = Dispatcher()
+
+def markdown_to_html(text: str) -> str:
+    """Convert Markdown formatting to Telegram HTML parse_mode markup."""
+    # Escape HTML special chars first (except ones we'll add ourselves)
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # Code blocks (``` ... ```) — must come before inline code
+    text = re.sub(r"```(?:\w+)?\n?(.*?)```", lambda m: f"<pre><code>{m.group(1).strip()}</code></pre>", text, flags=re.DOTALL)
+
+    # Inline code (`code`)
+    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+
+    # Bold: **text** or __text__
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text, flags=re.DOTALL)
+    text = re.sub(r"__(.+?)__", r"<b>\1</b>", text, flags=re.DOTALL)
+
+    # Italic: *text* or _text_ (single, not double)
+    text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", text)
+    text = re.sub(r"(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", r"<i>\1</i>", text)
+
+    # Headings (### Heading → <b>Heading</b> with a newline)
+    text = re.sub(r"^#{1,6}\s+(.+)$", r"<b>\1</b>", text, flags=re.MULTILINE)
+
+    # Strikethrough: ~~text~~
+    text = re.sub(r"~~(.+?)~~", r"<s>\1</s>", text)
+
+    # Horizontal rules (--- or ***) → just a blank line
+    text = re.sub(r"^[-*]{3,}$", "", text, flags=re.MULTILINE)
+
+    return text
 
 class NamingState(StatesGroup):
     waiting_for_name = State()
@@ -746,7 +777,7 @@ async def ai_agent_fallback_handler(message: types.Message):
         lang = user.language if user and user.language else "en"
         response = await ask_agent(message.from_user.id, message.text, lang=lang)
         await thinking_msg.delete()
-        await message.answer(response, parse_mode="HTML")
+        await message.answer(markdown_to_html(response), parse_mode="HTML")
     except Exception as e:
         import logging
         logging.error(f"Error in AI handler: {e}")
