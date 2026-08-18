@@ -3,7 +3,8 @@ tts_service.py — Text-to-Speech via Deepgram Flux TTS on OpenRouter.
 
 Responsibilities
 ----------------
-* text → raw MP3 bytes   (no Telegram knowledge, no aiogram imports)
+* text -> raw MP3 bytes   (no Telegram knowledge, no aiogram imports)
+* Strips emojis/stickers before speaking — e.g. "Hello! 😄" is sent as "Hello!"
 * Key rotation: tries each key in the shared OR pool on 429 / 5xx
 * Enforces MAX_TTS_CHARS to prevent runaway requests
 * Exposes a single clean TTSError for callers to handle
@@ -12,6 +13,7 @@ Responsibilities
 from __future__ import annotations
 
 import logging
+import re
 from enum import Enum, auto
 from dataclasses import dataclass
 from typing import Optional
@@ -21,6 +23,42 @@ import httpx
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# ── Emoji / non-speakable character stripper ──────────────────────────────────
+
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "\U0001F300-\U0001F5FF"  # misc symbols & pictographs
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F680-\U0001F6FF"  # transport & map
+    "\U0001F700-\U0001F77F"  # alchemical
+    "\U0001F780-\U0001F7FF"  # geometric shapes extended
+    "\U0001F800-\U0001F8FF"  # supplemental arrows
+    "\U0001F900-\U0001F9FF"  # supplemental symbols
+    "\U0001FA00-\U0001FA6F"  # chess symbols
+    "\U0001FA70-\U0001FAFF"  # symbols and pictographs extended-A
+    "\U00002600-\U000027BF"  # misc symbols (☀️ ✨ etc.)
+    "\U0000FE00-\U0000FE0F"  # variation selectors
+    "\U0000200D"             # zero-width joiner
+    "\U000024C2-\U0001F251"  # enclosed chars
+    "]+",
+    flags=re.UNICODE,
+)
+
+
+def _strip_tts_artifacts(text: str) -> str:
+    """
+    Remove emojis, stickers, and other non-speakable Unicode characters
+    from *text* before it is sent to the TTS API.
+
+    Example: "Hello! 😄👋" → "Hello!"
+    """
+    text = _EMOJI_RE.sub("", text)
+    # Collapse any leftover multiple spaces created by emoji removal
+    text = re.sub(r" {2,}", " ", text).strip()
+    return text
+
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -224,6 +262,8 @@ class TTSService:
             raise TTSError("No OpenRouter API keys configured for TTS.")
 
         text = text.strip()
+        # Strip emojis and other non-speakable characters
+        text = _strip_tts_artifacts(text)
         if not text:
             raise ValueError("TTS text must not be empty.")
 
