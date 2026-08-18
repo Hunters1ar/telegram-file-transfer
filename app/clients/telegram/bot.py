@@ -886,9 +886,45 @@ async def handle_tts_awaited_text(message: types.Message, state: FSMContext) -> 
 
 
 @dp.message(F.text)
-async def ai_agent_fallback_handler(message: types.Message):
-    # Ignore unregistered slash commands
-    if message.text.startswith('/'):
+async def ai_agent_fallback_handler(message: types.Message, state: FSMContext):
+    import re as _re
+
+    raw_text = message.text or ""
+    is_group = message.chat.type in ("group", "supergroup")
+
+    # ── Group chat: only respond when the bot is @mentioned ───────────────────
+    if is_group:
+        bot_mention = f"@{settings.bot_username}"
+        if bot_mention.lower() not in raw_text.lower():
+            return
+        # Strip the mention so the rest of the handler sees clean text
+        effective_text = _re.sub(
+            _re.escape(bot_mention), "", raw_text, flags=_re.IGNORECASE
+        ).strip()
+    else:
+        effective_text = raw_text
+
+    # ── Handle "@bot /tts text" mention-first pattern in groups ───────────────
+    # Also handles plain "/tts text" that slipped past the Command handler
+    if effective_text.lower().startswith("/tts"):
+        from app.core.config import settings as _s
+        if not _s.tts_enabled:
+            await message.answer("🔇 TTS is currently disabled.")
+            return
+        body = _re.sub(r"^/tts(@\S+)?\s*", "", effective_text, flags=_re.IGNORECASE).strip()
+        if body:
+            await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
+            await _send_voice_or_fallback(message, body)
+        else:
+            await state.set_state(TTSState.waiting_for_text)
+            await message.answer(
+                "🎙️ <b>TTS mode active!</b>\nSend me the text to speak.",
+                parse_mode="HTML",
+            )
+        return
+
+    # ── Ignore other unrecognised slash commands ───────────────────────────────
+    if effective_text.startswith("/"):
         return
 
     from app.services.venice_service import (
@@ -902,8 +938,7 @@ async def ai_agent_fallback_handler(message: types.Message):
     from app.repositories.mongodb.user_repository import user_repository
 
     # ── 1. Activation phrase check ────────────────────────────────────────────
-    # Checked before showing the thinking sticker so the reply is instant.
-    if is_activation_phrase(message.text):
+    if is_activation_phrase(effective_text):
         try:
             await set_shadow_active(message.from_user.id, True)
             await message.answer(
@@ -919,7 +954,7 @@ async def ai_agent_fallback_handler(message: types.Message):
         return
 
     # ── 2. Deactivation phrase check ──────────────────────────────────────────
-    if is_deactivation_phrase(message.text):
+    if is_deactivation_phrase(effective_text):
         try:
             is_active = await get_shadow_active(message.from_user.id)
             if is_active:
@@ -929,12 +964,11 @@ async def ai_agent_fallback_handler(message: types.Message):
                     parse_mode="HTML"
                 )
                 return
-            # Shadow wasn't active — fall through to normal AI
         except Exception as e:
             import logging
             logging.error(f"Shadow deactivation check failed for {message.from_user.id}: {e}")
 
-    # ── 3. Pre-fetch shadow state once (used by both TTS and AI branches) ─────
+    # ── 3. Pre-fetch shadow state once ────────────────────────────────────────
     shadow_active = False
     try:
         shadow_active = await get_shadow_active(message.from_user.id)
@@ -946,16 +980,14 @@ async def ai_agent_fallback_handler(message: types.Message):
     if not shadow_active and _s.tts_enabled:
         from app.services.tts_service import detect_tts_intent, TTSIntentKind
 
-        tts_intent = detect_tts_intent(message.text)
+        tts_intent = detect_tts_intent(effective_text)
 
         if tts_intent.kind == TTSIntentKind.DIRECT_TTS:
-            # User supplied the text — skip the AI entirely.
             await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
             await _send_voice_or_fallback(message, tts_intent.text)
             return
 
         if tts_intent.kind == TTSIntentKind.AI_TTS:
-            # Let the AI craft the reply, then speak it aloud.
             try:
                 thinking_msg = await message.answer_sticker("CAACAgIAAxUAAWqDy_T--ZTKHa7kh8YqbDAAAeIqRwACKpoAAkJqIEhMY1khmFrSKz0E")
             except Exception:
@@ -965,7 +997,7 @@ async def ai_agent_fallback_handler(message: types.Message):
             try:
                 user = await user_repository.get_by_telegram_id(message.from_user.id)
                 lang = user.language if user and user.language else "en"
-                ai_text = await ask_agent(message.from_user.id, message.text, lang=lang)
+                ai_text = await ask_agent(message.from_user.id, effective_text, lang=lang)
                 await thinking_msg.delete()
                 await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
                 await _send_voice_or_fallback(message, ai_text)
@@ -976,7 +1008,7 @@ async def ai_agent_fallback_handler(message: types.Message):
                 await message.answer("⚠️ An unexpected error occurred. Please try again.")
             return
 
-    # ── 5. Normal flow: text response only ───────────────────────────────────
+    # ── 5. Normal AI text response ────────────────────────────────────────────
     try:
         thinking_msg = await message.answer_sticker("CAACAgIAAxUAAWqDy_T--ZTKHa7kh8YqbDAAAeIqRwACKpoAAkJqIEhMY1khmFrSKz0E")
     except Exception:
@@ -988,9 +1020,9 @@ async def ai_agent_fallback_handler(message: types.Message):
         lang = user.language if user and user.language else "en"
 
         if shadow_active:
-            response = await ask_venice(message.from_user.id, message.text, lang=lang)
+            response = await ask_venice(message.from_user.id, effective_text, lang=lang)
         else:
-            response = await ask_agent(message.from_user.id, message.text, lang=lang)
+            response = await ask_agent(message.from_user.id, effective_text, lang=lang)
 
         await thinking_msg.delete()
         await message.answer(markdown_to_html(response), parse_mode="HTML")
@@ -1000,3 +1032,4 @@ async def ai_agent_fallback_handler(message: types.Message):
         logging.error(f"Error in AI handler: {e}")
         await thinking_msg.delete()
         await message.answer("⚠️ An unexpected error occurred while communicating with the AI agent.", parse_mode="HTML")
+
