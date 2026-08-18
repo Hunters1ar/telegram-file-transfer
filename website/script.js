@@ -78,13 +78,13 @@ function formatBytes(bytes) {
 
 function getFileIcon(filename) {
   const ext = filename.split('.').pop().toLowerCase();
-  if (['pdf'].includes(ext)) return '📄';
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return '🖼';
-  if (['mp4', 'mov', 'avi', 'mkv'].includes(ext)) return '🎬';
-  if (['mp3', 'wav', 'ogg'].includes(ext)) return '🎵';
-  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '📦';
-  if (['js', 'py', 'html', 'css', 'cpp', 'c', 'java'].includes(ext)) return '💻';
-  return '📄';
+  if (['pdf'].includes(ext)) return '<i class="ph ph-file-text"></i>';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return '<i class="ph ph-image"></i>';
+  if (['mp4', 'mov', 'avi', 'mkv'].includes(ext)) return '<i class="ph ph-video"></i>';
+  if (['mp3', 'wav', 'ogg'].includes(ext)) return '<i class="ph ph-music-note"></i>';
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '<i class="ph ph-package"></i>';
+  if (['js', 'py', 'html', 'css', 'cpp', 'c', 'java'].includes(ext)) return '<i class="ph ph-code"></i>';
+  return '<i class="ph ph-file-text"></i>';
 }
 
 function timeAgo(dateString) {
@@ -155,7 +155,7 @@ function buildFileRow(file, context = 'default') {
       <div class="f-meta"><span>${file.size}</span></div>
       <div class="f-actions" onclick="event.stopPropagation()">
         <button class="f-btn" data-action="restore" title="Restore">♻</button>
-        <button class="f-btn f-btn-danger" data-action="purge" title="Delete permanently">🗑</button>
+        <button class="f-btn f-btn-danger" data-action="purge" title="Delete permanently"><i class="ph ph-trash"></i></button>
       </div>
     `;
     row.querySelector('[data-action="restore"]').addEventListener('click', () => restoreFromTrash(file));
@@ -175,9 +175,9 @@ function buildFileRow(file, context = 'default') {
     </div>
     <div class="f-actions" onclick="event.stopPropagation()">
       <button class="f-btn f-star ${fav ? 'is-fav' : ''}" data-action="fav" title="Favorite">⭐</button>
-      <button class="f-btn" data-action="download">⬇</button>
+      <button class="f-btn" data-action="download"><i class="ph ph-download-simple"></i></button>
       <button class="f-btn" data-action="copy-link">🔗</button>
-      <button class="f-btn f-btn-danger" data-action="trash" title="Delete permanently">🗑</button>
+      <button class="f-btn f-btn-danger" data-action="trash" title="Delete permanently"><i class="ph ph-trash"></i></button>
     </div>
   `;
   row.querySelector('[data-action="fav"]').addEventListener('click', (e) => { e.stopPropagation(); toggleFavorite(file); });
@@ -251,7 +251,7 @@ async function downloadFile(file) {
     if (!res.ok) {
       if (win) win.close();
       toast(`Download failed (server returned ${res.status}). Try again shortly.`, 'error');
-      addLog('❌', `Download failed: ${file.name}`);
+      addLog('<i class="ph ph-x-circle"></i>', `Download failed: ${file.name}`);
       return;
     }
     if (win) win.location.href = url;
@@ -260,7 +260,7 @@ async function downloadFile(file) {
     if (win) win.close();
     console.error(e);
     toast('Download failed — check your connection.', 'error');
-    addLog('❌', `Download failed: ${file.name}`);
+    addLog('<i class="ph ph-x-circle"></i>', `Download failed: ${file.name}`);
   }
 }
 
@@ -275,7 +275,7 @@ async function deleteFile(file) {
     library = library.filter(f => f.id !== file.id);
     renderLibrary();
     fetchStats();
-    addLog('🗑', `Deleted ${file.name}`);
+    addLog('<i class="ph ph-trash"></i>', `Deleted ${file.name}`);
     toast('File deleted');
     detailsPanel.classList.remove('open');
   } catch (e) {
@@ -372,13 +372,13 @@ async function toggleFavorite(file) {
 /* ===== FILE TYPE GROUPING (for Folders & Analytics) ===== */
 function getFileType(filename) {
   const ext = (filename.split('.').pop() || '').toLowerCase();
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return { key: 'images', label: 'Images', icon: '🖼' };
-  if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) return { key: 'videos', label: 'Videos', icon: '🎬' };
-  if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) return { key: 'audio', label: 'Audio', icon: '🎵' };
-  if (['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return { key: 'documents', label: 'Documents', icon: '📄' };
-  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return { key: 'archives', label: 'Archives', icon: '📦' };
-  if (['js', 'ts', 'py', 'html', 'css', 'cpp', 'c', 'java', 'json'].includes(ext)) return { key: 'code', label: 'Code', icon: '💻' };
-  return { key: 'other', label: 'Other', icon: '📁' };
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return { key: 'images', label: 'Images', icon: '<i class="ph ph-image"></i>' };
+  if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) return { key: 'videos', label: 'Videos', icon: '<i class="ph ph-video"></i>' };
+  if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) return { key: 'audio', label: 'Audio', icon: '<i class="ph ph-music-note"></i>' };
+  if (['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return { key: 'documents', label: 'Documents', icon: '<i class="ph ph-file-text"></i>' };
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return { key: 'archives', label: 'Archives', icon: '<i class="ph ph-package"></i>' };
+  if (['js', 'ts', 'py', 'html', 'css', 'cpp', 'c', 'java', 'json'].includes(ext)) return { key: 'code', label: 'Code', icon: '<i class="ph ph-code"></i>' };
+  return { key: 'other', label: 'Other', icon: '<i class="ph ph-folder"></i>' };
 }
 
 function parseSizeToBytes(file) {
@@ -443,7 +443,7 @@ function renderFolders() {
   
   folderGridEl.innerHTML = '';
   if (customFolders.length === 0) {
-    folderGridEl.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><span class="empty-icon">📁</span><p>No folders yet. Click '+ New Folder' to create one.</p></div>`;
+    folderGridEl.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><span class="empty-icon"><i class="ph ph-folder"></i></span><p>No folders yet. Click '+ New Folder' to create one.</p></div>`;
   }
 
   customFolders.forEach(folder => {
@@ -454,7 +454,7 @@ function renderFolders() {
     card.className = 'folder-card';
     card.innerHTML = `
       <div style="display:flex; justify-content:space-between;">
-        <span class="folder-card-icon">📁</span>
+        <span class="folder-card-icon"><i class="ph ph-folder"></i></span>
         <button class="f-btn f-btn-danger btn-del-folder" data-id="${folder.id}" title="Delete Folder">✕</button>
       </div>
       <span class="folder-card-name">${escapeHtml(folder.name)}</span>
@@ -542,7 +542,7 @@ function openFolder(folderId) {
   const folder = customFolders.find(f => f.id === folderId);
   if (!folder) return;
   openFolderKey = folderId;
-  folderDetailTitleEl.textContent = `📁 ${folder.name}`;
+  folderDetailTitleEl.textContent = `<i class="ph ph-folder"></i> ${folder.name}`;
   folderFileListEl.innerHTML = '';
   
   const files = activeLibrary().filter(f => f.folder_id === folderId);
@@ -602,12 +602,12 @@ function renderAnalytics() {
   function groupByType() {
     const visible = activeLibrary();
     const groups = {
-      'Images': { label: 'Images', icon: '🖼', files: [] },
-      'Videos': { label: 'Videos', icon: '🎬', files: [] },
-      'Audio': { label: 'Audio', icon: '🎵', files: [] },
-      'Docs': { label: 'Documents', icon: '📄', files: [] },
-      'Archives': { label: 'Archives', icon: '📦', files: [] },
-      'Other': { label: 'Other', icon: '📁', files: [] }
+      'Images': { label: 'Images', icon: '<i class="ph ph-image"></i>', files: [] },
+      'Videos': { label: 'Videos', icon: '<i class="ph ph-video"></i>', files: [] },
+      'Audio': { label: 'Audio', icon: '<i class="ph ph-music-note"></i>', files: [] },
+      'Docs': { label: 'Documents', icon: '<i class="ph ph-file-text"></i>', files: [] },
+      'Archives': { label: 'Archives', icon: '<i class="ph ph-package"></i>', files: [] },
+      'Other': { label: 'Other', icon: '<i class="ph ph-folder"></i>', files: [] }
     };
     visible.forEach(f => {
       const ext = f.name.split('.').pop().toLowerCase();
@@ -655,7 +655,7 @@ function renderAnalytics() {
       </div>
       <div class="split-legend">
         <div class="legend-row"><span class="legend-dot" style="background:var(--crimson)"></span> Public <span class="count">${publicCount}</span></div>
-        <div class="legend-row"><span class="legend-dot" style="background:rgba(255,255,255,0.35)"></span> Private <span class="count">${privateCount}</span></div>
+        <div class="legend-row"><span class="legend-dot" style="background:var(--dot-private)"></span> Private <span class="count">${privateCount}</span></div>
       </div>`;
   }
 }
@@ -777,7 +777,7 @@ if (dpMoveBtn) {
     // Add root option
     const rootItem = document.createElement('div');
     rootItem.className = 'cmd-item';
-    rootItem.innerHTML = `<span>📁</span> Dashboard (Remove from folder)`;
+    rootItem.innerHTML = `<span><i class="ph ph-folder"></i></span> Dashboard (Remove from folder)`;
     rootItem.onclick = () => {
       moveFileToFolder(activeFile.id, "root");
       folderModal.hidden = true;
@@ -787,7 +787,7 @@ if (dpMoveBtn) {
     customFolders.forEach(folder => {
       const el = document.createElement('div');
       el.className = 'cmd-item';
-      el.innerHTML = `<span>📁</span> ${escapeHtml(folder.name)}`;
+      el.innerHTML = `<span><i class="ph ph-folder"></i></span> ${escapeHtml(folder.name)}`;
       el.onclick = () => {
         moveFileToFolder(activeFile.id, folder.id);
         folderModal.hidden = true;
@@ -871,10 +871,10 @@ async function fetchLibrary() {
       uploaded_at: f.uploaded_at
     }));
     renderLibrary();
-    addLog('🔄', 'Library synced');
+    addLog('<i class="ph ph-arrows-clockwise"></i>', 'Library synced');
   } catch (e) {
     console.error(e);
-    addLog('❌', 'Sync failed: ' + e.message);
+    addLog('<i class="ph ph-x-circle"></i>', 'Sync failed: ' + e.message);
     toast('Sync err: ' + e.message, 'error');
   }
 }
@@ -1070,7 +1070,7 @@ async function startUploads() {
         uploaded_at: (result && result.uploaded_at) || new Date().toISOString()
       };
       library.unshift(newFile);
-      addLog('⬆', `Uploaded ${newFile.name}`);
+      addLog('<i class="ph ph-upload-simple"></i>', `Uploaded ${newFile.name}`);
       lastSuccess = newFile;
     } catch (e) {
       if (item.status === 'cancelled') continue;
@@ -1078,7 +1078,7 @@ async function startUploads() {
       item.status = 'error';
       updateQueueItem(idx, 0, item.file.size, 0, 'Failed');
       toast(`Upload failed: ${item.file.name}`, 'error');
-      addLog('❌', `Upload failed: ${item.file.name}`);
+      addLog('<i class="ph ph-x-circle"></i>', `Upload failed: ${item.file.name}`);
     }
   }
 
@@ -1144,8 +1144,7 @@ document.querySelectorAll('.cmd-item').forEach(item => {
     } else if (action === 'analytics') {
       showView('analytics');
     } else if (action === 'theme') {
-      const current = localStorage.getItem('hunterstar-theme') || 'dark';
-      setTheme(current === 'dark' ? 'light' : 'dark');
+      toggleTheme();
     } else if (action === 'language') {
       showView('settings');
       setTimeout(() => document.getElementById('lang-selector')?.focus(), 50);
@@ -1175,6 +1174,11 @@ window.setTheme = function(theme) {
   if (darkBtn) darkBtn.classList.toggle('active', theme === 'dark');
 };
 
+window.toggleTheme = function() {
+  const current = localStorage.getItem('hunterstar-theme') || 'dark';
+  setTheme(current === 'dark' ? 'light' : 'dark');
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   const t = localStorage.getItem('hunterstar-theme') || 'dark';
   setTheme(t);
@@ -1202,6 +1206,10 @@ document.getElementById('header-lang-btn')?.addEventListener('click', () => {
       langSelect.value = langs[nextIndex];
     }
   }
+});
+
+document.getElementById('header-theme-btn')?.addEventListener('click', () => {
+  toggleTheme();
 });
 
 /* ===== MOBILE & SIDEBAR NAV ROUTING ===== */

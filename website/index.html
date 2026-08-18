@@ -22,7 +22,7 @@
 </script>
 <link rel="stylesheet" href="style.css?v=21">
 <script src="i18n.js?v=21"></script>
-</head>
+<script src="https://unpkg.com/@phosphor-icons/web"></script></head>
 <body>
 
 <!-- Command Palette (Cmd+K) -->
@@ -89,6 +89,10 @@
       </div>
       <div class="topbar-actions">
         <button class="topbar-btn" id="header-lang-btn" title="Change Language"><img src="icons/translatebutton.webp" class="svg-icon" alt="translate-icon"></button>
+        <button class="topbar-btn theme-toggle-btn" id="header-theme-btn" title="Toggle Theme" aria-label="Toggle theme">
+          <span class="theme-icon-sun" aria-hidden="true">☀️</span>
+          <span class="theme-icon-moon" aria-hidden="true">🌙</span>
+        </button>
         <button class="topbar-btn"><img src="icons/notification-icon.webp" class="svg-icon" alt="notification-icon"></button>
       </div>
     </header>
@@ -318,7 +322,7 @@
       <div id="folder-modal-list" style="display:flex; flex-direction:column; gap:8px; max-height:300px; overflow-y:auto;">
         <!-- Populated by JS -->
       </div>
-      <button id="btn-close-folder-modal" style="padding:10px; background:rgba(255,255,255,0.1); border-radius:6px; margin-top:8px;" data-i18n>Cancel</button>
+      <button id="btn-close-folder-modal" style="padding:10px; background:var(--overlay-3); border-radius:6px; margin-top:8px;" data-i18n>Cancel</button>
     </div>
   </div>
 
