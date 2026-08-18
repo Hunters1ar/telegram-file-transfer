@@ -644,15 +644,16 @@ async def ai_agent_fallback_handler(message: types.Message):
     if message.text.startswith('/'):
         return
 
-    # Show typing indicator
+    # Send a temporary thinking message
+    thinking_msg = await message.answer("💭 <i>Thinking...</i>", parse_mode="HTML")
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     
     from app.services.ai_service import ask_agent
     
     try:
         response = await ask_agent(message.from_user.id, message.text)
-        await message.answer(response, parse_mode="HTML")
+        await thinking_msg.edit_text(response, parse_mode="HTML")
     except Exception as e:
         import logging
         logging.error(f"Error in AI handler: {e}")
-        await message.answer("⚠️ An unexpected error occurred while communicating with the AI agent.")
+        await thinking_msg.edit_text("⚠️ An unexpected error occurred while communicating with the AI agent.", parse_mode="HTML")
