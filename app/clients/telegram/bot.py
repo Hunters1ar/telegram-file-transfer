@@ -956,8 +956,20 @@ async def ai_agent_fallback_handler(message: types.Message, state: FSMContext):
 
         response = await ask_agent(message.from_user.id, effective_text, lang=lang)
 
+        # Refetch user to get the latest language (in case the AI changed it)
+        user_after = await user_repository.get_by_telegram_id(message.from_user.id)
+        current_lang = user_after.language if user_after and user_after.language else "en"
+        
+        from app.clients.telegram.keyboards import get_main_reply_keyboard
+        from app.core.config import settings
+        is_admin = (message.from_user.id == settings.telegram_admin_user_id)
+
         await thinking_msg.delete()
-        await message.answer(markdown_to_html(response), parse_mode="HTML")
+        await message.answer(
+            markdown_to_html(response), 
+            parse_mode="HTML",
+            reply_markup=get_main_reply_keyboard(is_admin, current_lang)
+        )
 
     except Exception as e:
         import logging

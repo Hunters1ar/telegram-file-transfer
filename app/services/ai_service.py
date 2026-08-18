@@ -439,6 +439,23 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "change_language",
+            "description": "Change the user's preferred language for the bot interface.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "language_code": {
+                        "type": "string",
+                        "description": "The language code to change to. Valid options: 'en' (English), 'ru' (Russian), 'uz' (Uzbek), 'ko' (Korean), 'zh' (Chinese)."
+                    }
+                },
+                "required": ["language_code"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_user_files",
             "description": "Search the user's files by name or category (e.g. document, photo, video, audio).",
             "parameters": {
@@ -577,6 +594,15 @@ async def execute_tool_call(user_id: int, tool_call) -> str:
             return "Failed to update user stats."
             
         return f"Behavior analyzed. Affection is now {updated_user.affection}/100, Anger is now {updated_user.anger}/100."
+
+    elif name == "change_language":
+        from app.repositories.mongodb.user_repository import user_repository
+        lang_code = arguments.get("language_code")
+        valid_langs = ["en", "ru", "uz", "ko", "zh"]
+        if lang_code not in valid_langs:
+            return f"Invalid language code '{lang_code}'. Must be one of {valid_langs}."
+        await user_repository.set_language(user_id, lang_code)
+        return f"Successfully changed user language to '{lang_code}'."
 
     elif name == "list_user_files":
         files = await file_repository.get_by_owner_id(user_id, limit=20)
