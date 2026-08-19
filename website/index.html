@@ -67,6 +67,7 @@
       <a href="#" class="nav-item" data-view="folders"><span><img src="icons/folders-icon.webp" class="svg-icon" alt="folders-icon"></span> <span data-i18n>Folders</span></a>
       <a href="#" class="nav-item" data-view="favorites"><span><img src="icons/favourite-icon.webp" class="svg-icon" alt="favourite-icon"></span> <span data-i18n>Favorites</span></a>
       <a href="#" class="nav-item" data-view="analytics"><span><img src="icons/stats-icon.webp" class="svg-icon" alt="stats-icon"></span> <span data-i18n>Analytics</span></a>
+      <a href="#" class="nav-item" data-view="aichat"><span><i class="ph ph-sparkle"></i></span> <span data-i18n>AI Chat</span></a>
       <a href="#" class="nav-item" data-view="settings"><span><img src="icons/settings-icon.webp" class="svg-icon" alt="settings-icon"></span> <span data-i18n>Settings</span></a>
     </nav>
   </aside>
@@ -83,17 +84,20 @@
   <!-- Main Content -->
   <main class="main-content">
     <header class="topbar">
-      <div class="search-bar">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="main-search-input" placeholder="Search (Press Ctrl+K)" data-i18n>
+      <div class="topbar-row topbar-row-top">
+        <div class="search-bar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="main-search-input" placeholder="Search (Press Ctrl+K)" data-i18n>
+        </div>
+        <button class="topbar-btn" data-view="aichat" title="AI Chat"><i class="ph ph-sparkle"></i></button>
       </div>
-      <div class="topbar-actions">
+      <div class="topbar-row topbar-actions">
         <button class="topbar-btn" id="header-lang-btn" title="Change Language"><img src="icons/translatebutton.webp" class="svg-icon" alt="translate-icon"></button>
+        <button class="topbar-btn"><img src="icons/notification-icon.webp" class="svg-icon" alt="notification-icon"></button>
         <button class="topbar-btn theme-toggle-btn" id="header-theme-btn" title="Toggle Theme" aria-label="Toggle theme">
           <span class="theme-icon-sun" aria-hidden="true"><i class="ph ph-sun"></i></span>
           <span class="theme-icon-moon" aria-hidden="true"><i class="ph ph-moon"></i></span>
         </button>
-        <button class="topbar-btn"><img src="icons/notification-icon.webp" class="svg-icon" alt="notification-icon"></button>
       </div>
     </header>
 
@@ -284,6 +288,65 @@
           </div>
         </div>
       </section>
+    </div>
+
+    <!-- AI Chat View -->
+    <div class="view aichat-view" id="view-aichat" hidden>
+      <div class="aichat-layout">
+
+        <!-- Conversation list -->
+        <aside class="aichat-rail" id="aichat-rail">
+          <button class="aichat-new-btn" id="aichat-new-btn">
+            <i class="ph ph-plus"></i> <span data-i18n>New Chat</span>
+          </button>
+          <div class="aichat-history" id="aichat-history-list">
+            <!-- Populated by JS -->
+          </div>
+        </aside>
+
+        <!-- Conversation -->
+        <div class="aichat-main">
+          <div class="aichat-topbar">
+            <button class="aichat-rail-toggle" id="aichat-rail-toggle" aria-label="Toggle history">
+              <i class="ph ph-list"></i>
+            </button>
+            <span class="aichat-title" id="aichat-title" data-i18n>New Chat</span>
+            <select id="aichat-model-select" class="aichat-model-select">
+              <option value="fast" data-i18n>Fast</option>
+              <option value="smart" selected data-i18n>Smart</option>
+            </select>
+          </div>
+
+          <div class="aichat-messages" id="aichat-messages">
+            <div class="aichat-empty" id="aichat-empty">
+              <span class="aichat-empty-icon"><i class="ph ph-sparkle"></i></span>
+              <h2 data-i18n>Ask Hunterstar AI</h2>
+              <p data-i18n>Ask about your files, storage, or anything else.</p>
+              <div class="aichat-suggestions">
+                <button class="aichat-suggestion-chip" data-prompt="Summarize what's in my storage">
+                  <span data-i18n>Summarize what's in my storage</span>
+                </button>
+                <button class="aichat-suggestion-chip" data-prompt="Which of my files are public?">
+                  <span data-i18n>Which of my files are public?</span>
+                </button>
+                <button class="aichat-suggestion-chip" data-prompt="Help me organize my folders">
+                  <span data-i18n>Help me organize my folders</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="aichat-composer">
+            <div class="aichat-input-wrap" id="aichat-input-wrap">
+              <textarea id="aichat-input" rows="1" placeholder="Message Hunterstar AI..." data-i18n></textarea>
+              <button class="aichat-send-btn" id="aichat-send-btn" disabled aria-label="Send">
+                <i class="ph ph-arrow-up"></i>
+              </button>
+            </div>
+            <p class="aichat-disclaimer" data-i18n>AI responses may be inaccurate. Verify important information.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </main>
 

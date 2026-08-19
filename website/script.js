@@ -665,7 +665,8 @@ const viewMap = {
   folders: 'view-folders',
   favorites: 'view-favorites',
   settings: 'view-settings',
-  analytics: 'view-analytics'
+  analytics: 'view-analytics',
+  aichat: 'view-aichat'
 };
 
 function showView(view) {
@@ -676,6 +677,9 @@ function showView(view) {
     const el = document.getElementById(id);
     if (el) el.hidden = (id !== viewMap[view]);
   });
+
+  const nav = document.querySelector('.mobile-nav');
+  if (nav) nav.classList.remove('nav-hidden');
 
   // Sync active state on both navs.
   document.querySelectorAll('.sidebar-nav .nav-item').forEach(i =>
@@ -692,6 +696,11 @@ function showView(view) {
   if (view === 'folders') renderFolders();
   else if (view === 'favorites') renderFavorites();
   else if (view === 'analytics') renderAnalytics();
+  else if (view === 'aichat') {
+    renderChatHistory();
+    if (!activeChatId) renderMessages();
+    document.getElementById('aichat-input')?.focus();
+  }
 }
 
 /* ===== DETAILS PANEL ===== */
@@ -1212,10 +1221,258 @@ document.getElementById('header-theme-btn')?.addEventListener('click', () => {
   toggleTheme();
 });
 
+/* ===== AI CHAT ===== */
+const AICHAT_STORAGE_KEY = 'hunterstar_ai_chats';
+
+let aiChats = [];
+let activeChatId = null;
+
+const aichatMessagesEl = document.getElementById('aichat-messages');
+const aichatHistoryEl = document.getElementById('aichat-history-list');
+const aichatInputEl = document.getElementById('aichat-input');
+const aichatSendBtn = document.getElementById('aichat-send-btn');
+const aichatInputWrap = document.getElementById('aichat-input-wrap');
+const aichatTitleEl = document.getElementById('aichat-title');
+const aichatModelSelect = document.getElementById('aichat-model-select');
+const aichatRail = document.getElementById('aichat-rail');
+const aichatRailToggle = document.getElementById('aichat-rail-toggle');
+const aichatNewBtn = document.getElementById('aichat-new-btn');
+
+function loadAIChats() {
+  try {
+    const raw = localStorage.getItem(AICHAT_STORAGE_KEY);
+    aiChats = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    aiChats = [];
+  }
+}
+
+function saveAIChats() {
+  try {
+    localStorage.setItem(AICHAT_STORAGE_KEY, JSON.stringify(aiChats));
+  } catch (e) {
+    // Storage may be unavailable (private mode, quota, etc.) — fail silently.
+  }
+}
+
+function getActiveChat() {
+  return aiChats.find(c => c.id === activeChatId) || null;
+}
+
+function renderChatHistory() {
+  if (!aichatHistoryEl) return;
+  if (aiChats.length === 0) {
+    aichatHistoryEl.innerHTML = `<div class="aichat-history-empty" data-i18n>No conversations yet.</div>`;
+    if (window.I18N) I18N.translatePage();
+    return;
+  }
+  aichatHistoryEl.innerHTML = aiChats
+    .slice()
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .map(chat => `
+      <div class="aichat-hist-item ${chat.id === activeChatId ? 'active' : ''}" data-id="${chat.id}">
+        <i class="ph ph-chat-circle-text"></i>
+        <span class="aichat-hist-label">${escapeHtml(chat.title || 'New Chat')}</span>
+        <button class="aichat-hist-del" data-id="${chat.id}" aria-label="Delete chat"><i class="ph ph-trash"></i></button>
+      </div>
+    `).join('');
+}
+
+function renderMessages() {
+  if (!aichatMessagesEl) return;
+  const chat = getActiveChat();
+
+  if (!chat || chat.messages.length === 0) {
+    aichatMessagesEl.innerHTML = `
+      <div class="aichat-empty" id="aichat-empty">
+        <span class="aichat-empty-icon"><i class="ph ph-sparkle"></i></span>
+        <h2 data-i18n>Ask Hunterstar AI</h2>
+        <p data-i18n>Ask about your files, storage, or anything else.</p>
+        <div class="aichat-suggestions">
+          <button class="aichat-suggestion-chip" data-prompt="Summarize what's in my storage"><span data-i18n>Summarize what's in my storage</span></button>
+          <button class="aichat-suggestion-chip" data-prompt="Which of my files are public?"><span data-i18n>Which of my files are public?</span></button>
+          <button class="aichat-suggestion-chip" data-prompt="Help me organize my folders"><span data-i18n>Help me organize my folders</span></button>
+        </div>
+      </div>`;
+    bindSuggestionChips();
+    if (window.I18N) I18N.translatePage();
+    return;
+  }
+
+  aichatMessagesEl.innerHTML = chat.messages.map(m => `
+    <div class="aichat-msg ${m.role}">
+      <div class="aichat-avatar">${m.role === 'user' ? '<i class="ph ph-user"></i>' : '<i class="ph ph-sparkle"></i>'}</div>
+      <div class="aichat-bubble">${escapeHtml(m.text)}</div>
+    </div>
+  `).join('');
+  aichatMessagesEl.scrollTop = aichatMessagesEl.scrollHeight;
+}
+
+function bindSuggestionChips() {
+  document.querySelectorAll('.aichat-suggestion-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      aichatInputEl.value = chip.dataset.prompt;
+      autoResizeChatInput();
+      sendChatMessage();
+    });
+  });
+}
+
+function updateChatTitleFromFirstMessage(chat, text) {
+  if (chat.title) return;
+  chat.title = text.length > 40 ? text.slice(0, 40).trim() + '…' : text;
+}
+
+function createNewChat() {
+  const chat = { id: 'chat_' + Date.now(), title: '', messages: [], updatedAt: Date.now() };
+  aiChats.push(chat);
+  activeChatId = chat.id;
+  saveAIChats();
+  renderChatHistory();
+  renderMessages();
+  if (aichatTitleEl) aichatTitleEl.textContent = 'New Chat';
+  aichatInputEl?.focus();
+  closeAichatRailOnMobile();
+}
+
+function selectChat(id) {
+  activeChatId = id;
+  const chat = getActiveChat();
+  if (aichatTitleEl) aichatTitleEl.textContent = (chat && chat.title) || 'New Chat';
+  renderChatHistory();
+  renderMessages();
+  closeAichatRailOnMobile();
+}
+
+function deleteChat(id) {
+  aiChats = aiChats.filter(c => c.id !== id);
+  if (activeChatId === id) {
+    activeChatId = aiChats.length ? aiChats[0].id : null;
+  }
+  saveAIChats();
+  renderChatHistory();
+  renderMessages();
+  if (aichatTitleEl) aichatTitleEl.textContent = (getActiveChat() && getActiveChat().title) || 'New Chat';
+}
+
+function autoResizeChatInput() {
+  if (!aichatInputEl) return;
+  aichatInputEl.style.height = 'auto';
+  aichatInputEl.style.height = Math.min(aichatInputEl.scrollHeight, 160) + 'px';
+  aichatSendBtn.disabled = aichatInputEl.value.trim().length === 0;
+}
+
+function showThinkingBubble() {
+  const el = document.createElement('div');
+  el.className = 'aichat-msg assistant thinking';
+  el.id = 'aichat-thinking';
+  el.innerHTML = `
+    <div class="aichat-avatar"><i class="ph ph-sparkle"></i></div>
+    <div class="aichat-bubble"><span class="aichat-dot"></span><span class="aichat-dot"></span><span class="aichat-dot"></span></div>`;
+  aichatMessagesEl.appendChild(el);
+  aichatMessagesEl.scrollTop = aichatMessagesEl.scrollHeight;
+}
+
+function removeThinkingBubble() {
+  document.getElementById('aichat-thinking')?.remove();
+}
+
+// Sends the conversation to the Hunterstar AI backend.
+// NOTE: adjust the endpoint path / request-response shape here to match
+// whatever AI model integration you've wired up on the API side.
+async function requestAIReply(chat, model) {
+  const res = await fetch(`${API_BASE}/chat/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-tg-data': initData },
+    body: JSON.stringify({
+      session_id: chat.id,
+      model,
+      messages: chat.messages.map(m => ({ role: m.role, content: m.text }))
+    })
+  });
+  if (!res.ok) throw new Error(`AI request failed (${res.status})`);
+  const data = await res.json();
+  return data.reply || data.message || data.text || '';
+}
+
+async function sendChatMessage() {
+  const text = aichatInputEl.value.trim();
+  if (!text) return;
+
+  if (!activeChatId || !getActiveChat()) {
+    const chat = { id: 'chat_' + Date.now(), title: '', messages: [], updatedAt: Date.now() };
+    aiChats.push(chat);
+    activeChatId = chat.id;
+  }
+  const chat = getActiveChat();
+
+  chat.messages.push({ role: 'user', text, ts: Date.now() });
+  updateChatTitleFromFirstMessage(chat, text);
+  chat.updatedAt = Date.now();
+  saveAIChats();
+
+  aichatInputEl.value = '';
+  autoResizeChatInput();
+  renderMessages();
+  renderChatHistory();
+  if (aichatTitleEl) aichatTitleEl.textContent = chat.title;
+
+  showThinkingBubble();
+  aichatSendBtn.disabled = true;
+
+  try {
+    const model = aichatModelSelect?.value || 'smart';
+    const reply = await requestAIReply(chat, model);
+    removeThinkingBubble();
+    chat.messages.push({ role: 'assistant', text: reply || "I didn't get a response — try again.", ts: Date.now() });
+  } catch (err) {
+    removeThinkingBubble();
+    chat.messages.push({ role: 'assistant', text: "Sorry, I couldn't reach the AI service right now. Please try again in a moment.", ts: Date.now() });
+    toast('AI service unavailable', 'error');
+  }
+
+  chat.updatedAt = Date.now();
+  saveAIChats();
+  renderMessages();
+  renderChatHistory();
+}
+
+function closeAichatRailOnMobile() {
+  if (window.innerWidth <= 900) aichatRail?.classList.remove('open');
+}
+
+aichatNewBtn?.addEventListener('click', createNewChat);
+
+aichatHistoryEl?.addEventListener('click', (e) => {
+  const delBtn = e.target.closest('.aichat-hist-del');
+  if (delBtn) {
+    e.stopPropagation();
+    deleteChat(delBtn.dataset.id);
+    return;
+  }
+  const item = e.target.closest('.aichat-hist-item');
+  if (item) selectChat(item.dataset.id);
+});
+
+aichatRailToggle?.addEventListener('click', () => aichatRail?.classList.toggle('open'));
+
+aichatInputEl?.addEventListener('input', autoResizeChatInput);
+aichatInputEl?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChatMessage();
+  }
+});
+aichatSendBtn?.addEventListener('click', sendChatMessage);
+
+loadAIChats();
+renderChatHistory();
+
 /* ===== MOBILE & SIDEBAR NAV ROUTING ===== */
 document.querySelectorAll('.m-nav-item').forEach(item => {
   item.addEventListener('click', (e) => {
     e.preventDefault();
+
     if (item.classList.contains('upload-btn')) return;
     if (item.dataset.view) showView(item.dataset.view);
   });
@@ -1228,6 +1485,36 @@ document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
   });
 });
 
+document.querySelectorAll('.topbar-btn[data-view]').forEach(item => {
+  item.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (item.dataset.view) showView(item.dataset.view);
+  });
+});
+
 /* ===== INITIALIZATION ===== */
 fetchStats();
 fetchLibrary();
+
+/* ===== MOBILE NAV SCROLL ANIMATION ===== */
+let lastScrollY = 0;
+const mobileNav = document.querySelector('.mobile-nav');
+
+function handleNavScroll(e) {
+  if (window.innerWidth > 768 || !mobileNav) return;
+  const currentScrollY = e.target.scrollTop;
+  
+  // if scrolling down and past a threshold, hide
+  if (currentScrollY > lastScrollY && currentScrollY > 50) {
+    mobileNav.classList.add('nav-hidden');
+  } 
+  // if scrolling up, show
+  else if (currentScrollY < lastScrollY) {
+    mobileNav.classList.remove('nav-hidden');
+  }
+  lastScrollY = currentScrollY;
+}
+
+document.querySelectorAll('.dashboard-scroll').forEach(el => {
+  el.addEventListener('scroll', handleNavScroll, { passive: true });
+});

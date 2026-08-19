@@ -588,6 +588,23 @@ async def handle_storage_stats(message: types.Message):
     stats = await file_repository.get_user_stats(message.from_user.id)
     await message.answer(f"☁ <b>{t('Storage Used', lang)}:</b> {stats.get('total_size', 0) / (1024*1024):.2f} MB\n📁 <b>{t('Total Files', lang)}:</b> {stats.get('total_files', 0)}", parse_mode="HTML")
 
+@dp.message(F.text == "🎨 Generate Image")
+async def handle_generate_image_button(message: types.Message, state: FSMContext):
+    await state.set_state(ImageState.waiting_for_prompt)
+    await message.answer("🎨 Please send me the prompt for the image you want to generate:")
+
+@dp.message(F.text == "🎵 Generate Audio")
+async def handle_generate_audio_button(message: types.Message, state: FSMContext):
+    from app.core.config import settings as _s
+    if not _s.tts_enabled:
+        await message.answer("🔇 TTS is currently disabled.")
+        return
+    await state.set_state(TTSState.waiting_for_text)
+    await message.answer(
+        "🎙️ <b>TTS mode active!</b>\n"
+        "Send me any text and I'll speak it for you.",
+        parse_mode="HTML",
+    )
 
 
 @dp.inline_query()
