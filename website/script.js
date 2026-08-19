@@ -1278,6 +1278,26 @@ function renderChatHistory() {
     `).join('');
 }
 
+function renderMessageBubble(m) {
+  if (m.type === 'image' && m.imageBase64) {
+    return `<img src="data:image/jpeg;base64,${m.imageBase64}" alt="${escapeHtml(m.text || 'Generated image')}" class="aichat-gen-image" loading="lazy">`;
+  }
+  if (m.type === 'audio' && m.audioBase64) {
+    return `<div class="aichat-audio-wrap">
+      <audio controls class="aichat-audio-player">
+        <source src="data:audio/mpeg;base64,${m.audioBase64}" type="audio/mpeg">
+      </audio>
+      <span class="aichat-audio-label">${escapeHtml(m.text ? m.text.slice(0, 60) + (m.text.length > 60 ? '…' : '') : 'Audio')}</span>
+    </div>`;
+  }
+  // Render simple markdown: bold, italic, code
+  let html = escapeHtml(m.text || '');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  html = html.replace(/\*(.+?)\*/g, '<i>$1</i>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  return html;
+}
+
 function renderMessages() {
   if (!aichatMessagesEl) return;
   const chat = getActiveChat();
@@ -1302,11 +1322,12 @@ function renderMessages() {
   aichatMessagesEl.innerHTML = chat.messages.map(m => `
     <div class="aichat-msg ${m.role}">
       <div class="aichat-avatar">${m.role === 'user' ? '<i class="ph ph-user"></i>' : '<i class="ph ph-sparkle"></i>'}</div>
-      <div class="aichat-bubble">${escapeHtml(m.text)}</div>
+      <div class="aichat-bubble">${renderMessageBubble(m)}</div>
     </div>
   `).join('');
   aichatMessagesEl.scrollTop = aichatMessagesEl.scrollHeight;
 }
+
 
 function bindSuggestionChips() {
   document.querySelectorAll('.aichat-suggestion-chip').forEach(chip => {
@@ -1378,21 +1399,137 @@ function removeThinkingBubble() {
 }
 
 // Sends the conversation to the Hunterstar AI backend.
-// NOTE: adjust the endpoint path / request-response shape here to match
-// whatever AI model integration you've wired up on the API side.
 async function requestAIReply(chat, model) {
+  const lang = (window.I18N && window.I18N.currentLanguage) || 'en';
   const res = await fetch(`${API_BASE}/chat/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-tg-data': initData },
     body: JSON.stringify({
       session_id: chat.id,
       model,
-      messages: chat.messages.map(m => ({ role: m.role, content: m.text }))
+      lang,
+      messages: chat.messages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role, content: m.text }))
     })
   });
   if (!res.ok) throw new Error(`AI request failed (${res.status})`);
   const data = await res.json();
   return data.reply || data.message || data.text || '';
+}
+
+async function requestImageGeneration(prompt) {
+  const res = await fetch(`${API_BASE}/chat/image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-tg-data': initData },
+    body: JSON.stringify({ prompt })
+  });
+  if (!res.ok) throw new Error(`Image generation failed (${res.status})`);
+  return await res.json(); // { image_base64, mime_type, prompt }
+}
+
+async function requestAudioGeneration(text) {
+  const res = await fetch(`${API_BASE}/chat/audio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-tg-data': initData },
+    body: JSON.stringify({ text })
+  });
+  if (!res.ok) throw new Error(`Audio generation failed (${res.status})`);
+  return await res.json(); // { audio_base64, mime_type }
+}
+
+async function sendImageMessage() {
+  const prompt = aichatInputEl.value.trim();
+  if (!prompt) return;
+
+  if (!activeChatId || !getActiveChat()) {
+    const chat = { id: 'chat_' + Date.now(), title: '', messages: [], updatedAt: Date.now() };
+    aiChats.push(chat);
+    activeChatId = chat.id;
+  }
+  const chat = getActiveChat();
+
+  chat.messages.push({ role: 'user', text: '🎨 ' + prompt, ts: Date.now() });
+  updateChatTitleFromFirstMessage(chat, prompt);
+  chat.updatedAt = Date.now();
+  saveAIChats();
+
+  aichatInputEl.value = '';
+  autoResizeChatInput();
+  renderMessages();
+  renderChatHistory();
+  if (aichatTitleEl) aichatTitleEl.textContent = chat.title;
+
+  showThinkingBubble();
+  aichatSendBtn.disabled = true;
+
+  try {
+    const result = await requestImageGeneration(prompt);
+    removeThinkingBubble();
+    chat.messages.push({
+      role: 'assistant',
+      text: prompt,
+      type: 'image',
+      imageBase64: result.image_base64,
+      ts: Date.now()
+    });
+  } catch (err) {
+    removeThinkingBubble();
+    chat.messages.push({ role: 'assistant', text: '❌ Failed to generate image. Please try again.', ts: Date.now() });
+    toast('Image generation failed', 'error');
+  }
+
+  chat.updatedAt = Date.now();
+  saveAIChats();
+  renderMessages();
+  renderChatHistory();
+}
+
+async function sendAudioMessage() {
+  const text = aichatInputEl.value.trim();
+  if (!text) return;
+
+  if (!activeChatId || !getActiveChat()) {
+    const chat = { id: 'chat_' + Date.now(), title: '', messages: [], updatedAt: Date.now() };
+    aiChats.push(chat);
+    activeChatId = chat.id;
+  }
+  const chat = getActiveChat();
+
+  chat.messages.push({ role: 'user', text: '🔊 ' + text, ts: Date.now() });
+  updateChatTitleFromFirstMessage(chat, text);
+  chat.updatedAt = Date.now();
+  saveAIChats();
+
+  aichatInputEl.value = '';
+  autoResizeChatInput();
+  renderMessages();
+  renderChatHistory();
+  if (aichatTitleEl) aichatTitleEl.textContent = chat.title;
+
+  showThinkingBubble();
+  aichatSendBtn.disabled = true;
+
+  try {
+    const result = await requestAudioGeneration(text);
+    removeThinkingBubble();
+    chat.messages.push({
+      role: 'assistant',
+      text: text,
+      type: 'audio',
+      audioBase64: result.audio_base64,
+      ts: Date.now()
+    });
+  } catch (err) {
+    removeThinkingBubble();
+    chat.messages.push({ role: 'assistant', text: '❌ Failed to generate audio. Please try again.', ts: Date.now() });
+    toast('Audio generation failed', 'error');
+  }
+
+  chat.updatedAt = Date.now();
+  saveAIChats();
+  renderMessages();
+  renderChatHistory();
 }
 
 async function sendChatMessage() {
@@ -1464,6 +1601,24 @@ aichatInputEl?.addEventListener('keydown', (e) => {
   }
 });
 aichatSendBtn?.addEventListener('click', sendChatMessage);
+
+document.getElementById('aichat-image-btn')?.addEventListener('click', () => {
+  if (!aichatInputEl.value.trim()) {
+    aichatInputEl.placeholder = 'Describe the image to generate...';
+    aichatInputEl.focus();
+  } else {
+    sendImageMessage();
+  }
+});
+
+document.getElementById('aichat-audio-btn')?.addEventListener('click', () => {
+  if (!aichatInputEl.value.trim()) {
+    aichatInputEl.placeholder = 'Type text to convert to audio...';
+    aichatInputEl.focus();
+  } else {
+    sendAudioMessage();
+  }
+});
 
 loadAIChats();
 renderChatHistory();

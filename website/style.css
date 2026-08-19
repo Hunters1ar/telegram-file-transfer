@@ -594,6 +594,24 @@ html.dark .theme-toggle-btn .theme-icon-moon { display: inline-block; }
 @keyframes aichatBlink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
 
 .aichat-composer { padding: 12px 24px 20px; flex-shrink: 0; }
+
+/* ── Composer action bar (Image / Audio buttons) ──────────────── */
+.aichat-composer-actions {
+  max-width: 720px; margin: 0 auto 8px;
+  display: flex; gap: 8px;
+}
+.aichat-action-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 20px; font-size: 12.5px; font-weight: 500;
+  border: 1px solid var(--border-light); background: var(--bg-surface);
+  color: var(--text-secondary); transition: all 0.2s; cursor: pointer;
+}
+.aichat-action-btn:hover {
+  border-color: var(--crimson); color: var(--crimson);
+  box-shadow: 0 0 8px var(--crimson-glow);
+}
+.aichat-action-btn i { font-size: 14px; }
+
 .aichat-input-wrap {
   max-width: 720px; margin: 0 auto; display: flex; align-items: flex-end; gap: 10px;
   background: var(--bg-surface); border: 1px solid var(--border-light);
@@ -617,6 +635,25 @@ html.dark .theme-toggle-btn .theme-icon-moon { display: inline-block; }
   text-align: center; font-size: 10.5px; color: var(--text-muted);
   font-family: 'JetBrains Mono', monospace; margin-top: 10px; max-width: 720px; margin-inline: auto;
 }
+
+/* ── Generated image in chat bubble ──────────────────────────── */
+.aichat-gen-image {
+  max-width: 100%; max-height: 400px; border-radius: 10px;
+  display: block; object-fit: contain; margin: 4px 0;
+}
+
+/* ── Audio player in chat bubble ─────────────────────────────── */
+.aichat-audio-wrap {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.aichat-audio-player {
+  width: 100%; max-width: 340px; height: 36px;
+  border-radius: 8px; accent-color: var(--crimson);
+}
+.aichat-audio-label {
+  font-size: 11px; color: var(--text-muted); font-style: italic;
+}
+
 
 @media (max-width: 900px) {
   .aichat-rail-toggle { display: flex; align-items: center; justify-content: center; }
