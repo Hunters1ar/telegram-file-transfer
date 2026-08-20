@@ -1594,29 +1594,49 @@ aichatHistoryEl?.addEventListener('click', (e) => {
 aichatRailToggle?.addEventListener('click', () => aichatRail?.classList.toggle('open'));
 
 aichatInputEl?.addEventListener('input', autoResizeChatInput);
+let currentChatMode = 'text';
+
+function handleChatSend() {
+  if (currentChatMode === 'image') {
+    sendImageMessage();
+  } else if (currentChatMode === 'audio') {
+    sendAudioMessage();
+  } else {
+    sendChatMessage();
+  }
+  currentChatMode = 'text';
+  if (aichatInputEl) aichatInputEl.placeholder = 'Message Hunterstar AI...';
+}
+
 aichatInputEl?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    sendChatMessage();
+    handleChatSend();
   }
 });
-aichatSendBtn?.addEventListener('click', sendChatMessage);
+aichatSendBtn?.addEventListener('click', handleChatSend);
 
 document.getElementById('aichat-image-btn')?.addEventListener('click', () => {
   if (!aichatInputEl.value.trim()) {
+    currentChatMode = 'image';
     aichatInputEl.placeholder = 'Describe the image to generate...';
     aichatInputEl.focus();
   } else {
     sendImageMessage();
+    currentChatMode = 'text';
+    aichatInputEl.placeholder = 'Message Hunterstar AI...';
   }
 });
 
 document.getElementById('aichat-audio-btn')?.addEventListener('click', () => {
   if (!aichatInputEl.value.trim()) {
+    currentChatMode = 'audio';
     aichatInputEl.placeholder = 'Type text to convert to audio...';
     aichatInputEl.focus();
   } else {
     sendAudioMessage();
+    currentChatMode = 'text';
+    aichatInputEl.placeholder = 'Message Hunterstar AI...';
   }
 });
 

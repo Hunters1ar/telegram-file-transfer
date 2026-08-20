@@ -949,7 +949,8 @@ async def ai_agent_fallback_handler(message: types.Message, state: FSMContext):
             try:
                 user = await user_repository.get_by_telegram_id(message.from_user.id)
                 lang = user.language if user and user.language else "en"
-                ai_text = await ask_agent(message.from_user.id, effective_text, lang=lang)
+                _is_admin = (message.from_user.id == settings.telegram_admin_user_id)
+                ai_text = await ask_agent(message.from_user.id, effective_text, lang=lang, is_admin=_is_admin)
                 await thinking_msg.delete()
                 await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
                 await _send_voice_or_fallback(message, ai_text)
@@ -970,8 +971,9 @@ async def ai_agent_fallback_handler(message: types.Message, state: FSMContext):
     try:
         user = await user_repository.get_by_telegram_id(message.from_user.id)
         lang = user.language if user and user.language else "en"
+        _is_admin = (message.from_user.id == settings.telegram_admin_user_id)
 
-        response = await ask_agent(message.from_user.id, effective_text, lang=lang)
+        response = await ask_agent(message.from_user.id, effective_text, lang=lang, is_admin=_is_admin)
 
         # Refetch user to get the latest language (in case the AI changed it)
         user_after = await user_repository.get_by_telegram_id(message.from_user.id)
