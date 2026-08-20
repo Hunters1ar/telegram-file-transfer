@@ -596,8 +596,37 @@ TOOLS = [
             }
         }
     }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_admin_memory",
+            "description": "Save a permanent memory, fact, or note about the admin. Use this when the admin asks you to remember something.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fact": {
+                        "type": "string",
+                        "description": "The specific fact or note to remember."
+                    }
+                },
+                "required": ["fact"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "clear_admin_memories",
+            "description": "Clear all permanently saved memories for the admin.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    }
 ]
-
 async def execute_tool_call(user_id: int, tool_call) -> str:
     """Executes a tool call requested by the model and returns the result as a string."""
     name = tool_call.function.name
@@ -605,6 +634,25 @@ async def execute_tool_call(user_id: int, tool_call) -> str:
         arguments = json.loads(tool_call.function.arguments)
     except json.JSONDecodeError:
         arguments = {}
+
+    if name == "save_admin_memory":
+        from app.core.config import settings
+        if user_id != settings.telegram_admin_user_id:
+            return "Error: Unauthorized. Only the admin can save memories."
+        from app.repositories.mongodb.admin_memory_repository import admin_memory_repository
+        fact = arguments.get("fact")
+        if not fact:
+            return "Error: missing 'fact' parameter."
+        success = await admin_memory_repository.add_memory(user_id, fact)
+        return "Memory saved successfully." if success else "Error: failed to save memory."
+
+    if name == "clear_admin_memories":
+        from app.core.config import settings
+        if user_id != settings.telegram_admin_user_id:
+            return "Error: Unauthorized. Only the admin can clear memories."
+        from app.repositories.mongodb.admin_memory_repository import admin_memory_repository
+        await admin_memory_repository.clear_memories(user_id)
+        return "All memories cleared successfully."
 
     if name == "analyze_user_behavior":
         from app.repositories.mongodb.user_repository import user_repository
@@ -843,6 +891,14 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en", is_admin:
                 f"- Telegram ID: {user_id}\n"
                 "Use this information when the user asks you to say or speak their name, username, or ID."
             )
+            
+            if is_admin:
+                from app.repositories.mongodb.admin_memory_repository import admin_memory_repository
+                memories = await admin_memory_repository.get_memories(user_id)
+                if memories:
+                    user_profile_context += "\n\n# Permanent Admin Memories:\n"
+                    for mem in memories:
+                        user_profile_context += f"- {mem}\n"
 
         # === PHASE 1: ROUTER ===
         router_messages = [{"role": "system", "content": ROUTER_PROMPT}] + history
