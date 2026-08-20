@@ -59,7 +59,7 @@ _gemini_clients = [
     )
     for key in _GEMINI_KEYS
 ]
-GEMINI_MODEL = "gemini-2.0-flash"   # fast, free-tier, supports tools
+GEMINI_MODEL = "gemini-3.6-flash"   # fast, free-tier, supports tools
 
 if _gemini_clients:
     logger.info(f"Gemini fallback enabled: {len(_gemini_clients)} key(s) configured.")
