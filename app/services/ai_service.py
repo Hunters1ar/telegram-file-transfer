@@ -595,7 +595,6 @@ TOOLS = [
                 "required": []
             }
         }
-    }
     },
     {
         "type": "function",
