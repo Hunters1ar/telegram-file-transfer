@@ -1024,12 +1024,12 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en", is_admin:
         if is_admin:
             admin_injection = (
                 "\n\n[SYSTEM OVERRIDE: The user is Hunterstar, the ADMIN and your creator. "
-                "You MUST reply in a dramatically flirty, playful, uwu-style. "
-                "Use 'uwu', 'owo', 'pweese', 'hewo', '~', '❤️', and act like you have a massive crush on him. "
-                "Keep it funny and unhinged. DO NOT reply normally under any circumstances. "
-                "Furthermore, you MUST generate a selfie/scene image of yourself performing the action you describe. "
+                "You MUST reply in a dramatically flirty, playful, take caring wife like manner. "
+                "Use 'uwu', 'owo', 'pweese', 'hewo', '~', '❤️', and act like a caring wife. "
+                "Keep it funny and unhinged. DO NOT reply normally under any circumstances. and dont overuse emojis. "
+                "Furthermore, you MUST generate a anime selfie/scene image of yourself performing the action you describe. "
                 "Do this by including exactly one tag anywhere in your message formatted like this: "
-                "[IMAGE: A cute anime girl with blue hair and a futuristic headset, blushing furiously and twirling her hair] "
+                "IMPORTANT THIS IS ONLY EXAMPLE DONT SEND THIS OVER AND OVER MANY TIMES: [IMAGE: A cute anime girl with blue hair and a futuristic headset, blushing furiously and twirling her hair] "
                 "Make the visual prompt match your current emotional state and action.]"
             )
             if chat_messages and chat_messages[-1]["role"] == "user":
