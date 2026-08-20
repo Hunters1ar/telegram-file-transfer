@@ -249,16 +249,10 @@ class TTSService:
         self.voice = voice or settings.tts_voice
         self.max_chars = max_chars
 
-    async def synthesize(self, text: str) -> bytes:
+    async def synthesize(self, text: str, lang: str = "en") -> bytes:
         """
         Synthesize *text* and return raw MP3 bytes.
-
-        Raises
-        ------
-        TTSError
-            When TTS is disabled, no keys are available, or all keys fail.
-        ValueError
-            When *text* is empty or exceeds MAX_TTS_CHARS.
+        Automatically routes to Fish Audio for non-English scripts.
         """
         if not settings.tts_enabled:
             raise TTSError("TTS is currently disabled.")
@@ -267,7 +261,6 @@ class TTSService:
             raise TTSError("No OpenRouter API keys configured for TTS.")
 
         text = text.strip()
-        # Strip emojis and other non-speakable characters
         text = _strip_tts_artifacts(text)
         if not text:
             raise ValueError("TTS text must not be empty.")
@@ -278,12 +271,27 @@ class TTSService:
                 f"Maximum is {self.max_chars} characters."
             )
 
+        # Detect non-English scripts (Cyrillic, Hangul, CJK, etc.)
+        # Russian/Uzbek (Cyrillic), Korean (Hangul), Chinese/Japanese (CJK)
+        has_cyrillic = bool(re.search(r'[\u0400-\u04FF]', text))
+        has_cjk = bool(re.search(r'[\u4E00-\u9FFF\u3400-\u4DBF\u3040-\u309F\u30A0-\u30FF]', text))
+        has_hangul = bool(re.search(r'[\uAC00-\uD7AF\u1100-\u11FF]', text))
+
+        target_model = self.model
+        target_voice = self.voice
+
+        # Route to Fish Audio if non-English language requested or non-Latin script detected
+        if lang not in ("en", "") or has_cyrillic or has_cjk or has_hangul:
+            target_model = "fishaudio/fish-speech-1.5"
+            target_voice = None # Fish Audio is auto-multilingual
+
         payload = {
-            "model": self.model,
+            "model": target_model,
             "input": text,
-            "voice": self.voice,
             "response_format": "mp3",
         }
+        if target_voice:
+            payload["voice"] = target_voice
 
         last_error: Exception | None = None
 
@@ -302,7 +310,7 @@ class TTSService:
                     if response.status_code == 200:
                         logger.info(
                             "TTS synthesized %d chars via OR key %d (%s, %s).",
-                            len(text), idx + 1, self.model, self.voice,
+                            len(text), idx + 1, target_model, target_voice,
                         )
                         return response.content
 

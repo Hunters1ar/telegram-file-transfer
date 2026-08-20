@@ -823,6 +823,7 @@ async def _send_voice_or_fallback(
     message: types.Message,
     text: str,
     fallback_label: str = "",
+    lang: str = "",
 ) -> None:
     """
     Try to synthesize *text* and send as a Telegram voice note.
@@ -830,8 +831,17 @@ async def _send_voice_or_fallback(
     """
     from app.services.tts_service import tts_service, TTSError
 
+    # If language isn't explicitly passed, try to fetch the user's preferred language
+    if not lang:
+        try:
+            from app.repositories.mongodb.user_repository import user_repository
+            user = await user_repository.get_by_telegram_id(message.from_user.id)
+            lang = user.language if user and user.language else "en"
+        except Exception:
+            lang = "en"
+    
     try:
-        audio_bytes = await tts_service.synthesize(text)
+        audio_bytes = await tts_service.synthesize(text, lang=lang)
         voice_file = types.BufferedInputFile(audio_bytes, filename="voice.mp3")
         await message.answer_voice(voice_file)
     except (TTSError, ValueError) as tts_exc:
@@ -969,6 +979,8 @@ async def ai_agent_fallback_handler(message: types.Message, state: FSMContext):
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
 
     try:
+        from app.clients.telegram.keyboards import get_main_reply_keyboard
+        from app.core.config import settings
         user = await user_repository.get_by_telegram_id(message.from_user.id)
         lang = user.language if user and user.language else "en"
         _is_admin = (message.from_user.id == settings.telegram_admin_user_id)
@@ -978,10 +990,7 @@ async def ai_agent_fallback_handler(message: types.Message, state: FSMContext):
         # Refetch user to get the latest language (in case the AI changed it)
         user_after = await user_repository.get_by_telegram_id(message.from_user.id)
         current_lang = user_after.language if user_after and user_after.language else "en"
-        
-        from app.clients.telegram.keyboards import get_main_reply_keyboard
-        from app.core.config import settings
-        is_admin = (message.from_user.id == settings.telegram_admin_user_id)
+        is_admin = _is_admin  # already computed above, reuse for keyboard
 
         await thinking_msg.delete()
         await message.answer(
