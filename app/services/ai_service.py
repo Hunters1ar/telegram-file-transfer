@@ -68,7 +68,7 @@ else:
 
 # Model configuration — Multi-model pipeline
 MODEL_ROUTER = "nvidia/nemotron-3.5-lightning:free"
-MODEL_CHAT   = "google/gemma-4-31b-it:free"
+MODEL_CHAT   = "nvidia/nemotron-3.5-lightning:free"
 RATE_LIMIT_SECONDS = 2.0
 MAX_HISTORY = 20
 MAX_TOOL_ROUNDS = 5
