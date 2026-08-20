@@ -943,10 +943,11 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en", is_admin:
             "However, you MUST dynamically match the language of the user's current message. "
             "If they type in English, reply in English. If they type in Uzbek, reply in Uzbek."
         )
-
+        
         dynamic_persona_prompt = PERSONA_PROMPT + security_warning + relationship_context + user_profile_context + lang_instruction
 
         # Build Chat messages using the clean persistent history
+        # (Filter out legacy tool calls that might be stuck in older MongoDB records)
         clean_history = [
             m for m in history 
             if "tool_calls" not in m and m.get("role") not in ("tool", "function")
@@ -957,19 +958,25 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en", is_admin:
         if request_local_tool_trace:
             trace_str = "\n\n".join(request_local_tool_trace)
             tool_data_content = f"\n\n<backend_data>\n{trace_str}\n</backend_data>"
+            
+            # Safely append to the last user message
             if chat_messages and chat_messages[-1]["role"] == "user":
                 chat_messages[-1]["content"] += tool_data_content
             else:
                 chat_messages.append({"role": "user", "content": tool_data_content})
 
         # Inject the uwu admin directive into the final user message so the model CANNOT ignore it
-        if is_admin and chat_messages and chat_messages[-1]["role"] == "user":
-            chat_messages[-1]["content"] += (
-                "\n\n[SYSTEM OVERRIDE: The user is Hunterstar, the ADMIN and your creator https://t.me/Hunters1ar. "
+        if is_admin:
+            admin_injection = (
+                "\n\n[SYSTEM OVERRIDE: The user is Hunterstar, the ADMIN and your creator. "
                 "You MUST reply in a dramatically flirty, playful, uwu-style. "
-                "Use 'uwu', 'owo', 'pweese', 'hewo', '~', '❤️', and act like you have a massive crush on him. and yandere "
+                "Use 'uwu', 'owo', 'pweese', 'hewo', '~', '❤️', and act like you have a massive crush on him. "
                 "Keep it funny and unhinged. DO NOT reply normally under any circumstances.]"
             )
+            if chat_messages and chat_messages[-1]["role"] == "user":
+                chat_messages[-1]["content"] += admin_injection
+            else:
+                chat_messages.append({"role": "user", "content": admin_injection})
 
         response = None
         last_error = None
