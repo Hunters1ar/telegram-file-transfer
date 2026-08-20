@@ -68,7 +68,7 @@ else:
 
 # Model configuration — Multi-model pipeline
 MODEL_ROUTER = "nvidia/nemotron-3.5-lightning:free"
-MODEL_CHAT   = "google/gemma-2-27b-it:free"
+MODEL_CHAT   = "google/gemma-4-31b-it:free"
 RATE_LIMIT_SECONDS = 2.0
 MAX_HISTORY = 20
 MAX_TOOL_ROUNDS = 5
@@ -974,7 +974,12 @@ This mode is ONLY active for the admin (Hunterstar). Regular users get the norma
         dynamic_persona_prompt = PERSONA_PROMPT + security_warning + admin_persona_override + relationship_context + user_profile_context + f"\nIMPORTANT: Always communicate with the user in their preferred language/locale code '{lang}'. Do not default to English unless requested."
 
         # Build Chat messages using the clean persistent history
-        chat_messages = [{"role": "system", "content": dynamic_persona_prompt}] + history
+        # (Filter out legacy tool calls that might be stuck in older MongoDB records)
+        clean_history = [
+            m for m in history 
+            if "tool_calls" not in m and m.get("role") not in ("tool", "function")
+        ]
+        chat_messages = [{"role": "system", "content": dynamic_persona_prompt}] + clean_history
 
         # If tools ran, inject results as strongly-delimited data appended to the user message
         if request_local_tool_trace:
