@@ -141,5 +141,8 @@
   "🔗 Copy Link": "🔗 Havolani nusxalash",
   "🔗 My Links": "🔗 Mening havolalarim",
   "🛡 Admin Menu": "🛡 Administrator menyusi",
-  "🧹 Cleaning up system (MongoDB and Cloudflare R2)...": "🧹 Tizimni tozalash (MongoDB va Cloudflare R2)..."
+  "🧹 Cleaning up system (MongoDB and Cloudflare R2)...": "🧹 Tizimni tozalash (MongoDB va Cloudflare R2)...",
+  "🎨 Generate Image": "🎨 Rasm yaratish",
+  "🎵 Generate Audio": "🎵 Ovoz yaratish",
+  "🎨 Please send me the prompt for the image you want to generate:": "🎨 Iltimos, yaratmoqchi bo'lgan rasmingiz uchun matn (prompt) yuboring:"
 }

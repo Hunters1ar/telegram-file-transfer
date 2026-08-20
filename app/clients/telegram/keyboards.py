@@ -129,8 +129,8 @@ def get_main_reply_keyboard(is_admin: bool = False, lang: str = "en"):
     builder.button(text=t("📊 Storage", lang))
     builder.button(text=t("⚙️ Settings", lang))
     
-    builder.button(text="🎵 Generate Audio")
-    builder.button(text="🎨 Generate Image")
+    builder.button(text=t("🎵 Generate Audio", lang))
+    builder.button(text=t("🎨 Generate Image", lang))
     
     if is_admin:
         builder.button(text=t("👑 Admin Menu", lang))

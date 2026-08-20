@@ -123,5 +123,8 @@
   "📤 Send File": "📤 Send File",
   "🔗 Copy Link": "🔗 Copy Link",
   "🔗 My Links": "🔗 My Links",
-  "🧹 Cleaning up system (MongoDB and Cloudflare R2)...": "🧹 Cleaning up system (MongoDB and Cloudflare R2)..."
+  "🧹 Cleaning up system (MongoDB and Cloudflare R2)...": "🧹 Cleaning up system (MongoDB and Cloudflare R2)...",
+  "🎨 Generate Image": "🎨 Generate Image",
+  "🎵 Generate Audio": "🎵 Generate Audio",
+  "🎨 Please send me the prompt for the image you want to generate:": "🎨 Please send me the prompt for the image you want to generate:"
 }

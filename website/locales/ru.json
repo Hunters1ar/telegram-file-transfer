@@ -141,5 +141,8 @@
   "🔗 Copy Link": "🔗 Скопировать ссылку",
   "🔗 My Links": "🔗 Мои ссылки",
   "🛡 Admin Menu": "🛡 Меню администратора",
-  "🧹 Cleaning up system (MongoDB and Cloudflare R2)...": "🧹 Очистка системы (MongoDB и Cloudflare R2)..."
+  "🧹 Cleaning up system (MongoDB and Cloudflare R2)...": "🧹 Очистка системы (MongoDB и Cloudflare R2)...",
+  "🎨 Generate Image": "🎨 Сгенерировать изображение",
+  "🎵 Generate Audio": "🎵 Сгенерировать аудио",
+  "🎨 Please send me the prompt for the image you want to generate:": "🎨 Пожалуйста, отправьте мне текст для генерации изображения:"
 }

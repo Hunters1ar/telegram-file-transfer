@@ -824,6 +824,13 @@ async function fetchStats() {
     if (!res.ok) return;
     const stats = await res.json();
     
+    // Sync language from backend
+    if (stats.language && window.I18N && window.I18N.currentLanguage !== stats.language) {
+      window.I18N.setLanguage(stats.language);
+      const langSelect = document.getElementById('lang-selector');
+      if (langSelect) langSelect.value = stats.language;
+    }
+
     document.getElementById('widget-files-count').textContent = stats.total_files;
     document.getElementById('widget-storage').textContent = formatBytes(stats.total_size);
     document.getElementById('widget-downloads').textContent = stats.total_downloads;
@@ -1693,3 +1700,18 @@ function handleNavScroll(e) {
 document.querySelectorAll('.dashboard-scroll').forEach(el => {
   el.addEventListener('scroll', handleNavScroll, { passive: true });
 });
+
+// Sync language changes back to the backend
+window.addEventListener('languageChanged', async (e) => {
+  if (!initData) return;
+  try {
+    await fetch(`${API_BASE}/analytics/language`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-tg-data': initData },
+      body: JSON.stringify({ language: e.detail })
+    });
+  } catch (err) {
+    console.error('Failed to sync language:', err);
+  }
+});
+

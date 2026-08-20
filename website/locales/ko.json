@@ -142,5 +142,8 @@
   "Hunterstar File Transfer is a service for convenient file transfer, storage, and sharing in one place.": "Hunterstar File Transfer는 파일 전송, 저장 및 공유를 한 곳에서 편리하게 할 수 있는 서비스입니다.",
   "Simply drag and drop or attach a file to this chat to upload it to Hunterstar File Transfer.": "파일을 드래그 앤 드롭하거나 이 채팅에 첨부하여 Hunterstar File Transfer에 업로드하세요.",
   "Manage file visibility and determine who can access them.": "파일 공개 여부를 관리하고 파일에 액세스할 수 있는 사람을 결정합니다.",
-  "File Management": "파일 관리"
+  "File Management": "파일 관리",
+  "🎨 Generate Image": "🎨 이미지 생성",
+  "🎵 Generate Audio": "🎵 오디오 생성",
+  "🎨 Please send me the prompt for the image you want to generate:": "🎨 생성할 이미지의 프롬프트를 보내주세요:"
 }

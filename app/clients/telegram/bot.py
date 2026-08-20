@@ -71,7 +71,10 @@ async def command_image_handler(message: types.Message, state: FSMContext):
     prompt = message.text.replace("/image", "").strip()
     if not prompt:
         await state.set_state(ImageState.waiting_for_prompt)
-        return await message.answer("🎨 Please send me the prompt for the image you want to generate:")
+        from app.repositories.mongodb.user_repository import user_repository
+        user = await user_repository.get_by_telegram_id(message.from_user.id)
+        lang = user.language if user and user.language else "en"
+        return await message.answer(t("🎨 Please send me the prompt for the image you want to generate:", lang))
         
     await process_image_generation(message, prompt, state)
 
@@ -588,12 +591,15 @@ async def handle_storage_stats(message: types.Message):
     stats = await file_repository.get_user_stats(message.from_user.id)
     await message.answer(f"☁ <b>{t('Storage Used', lang)}:</b> {stats.get('total_size', 0) / (1024*1024):.2f} MB\n📁 <b>{t('Total Files', lang)}:</b> {stats.get('total_files', 0)}", parse_mode="HTML")
 
-@dp.message(F.text == "🎨 Generate Image")
+@dp.message(F.text.in_(get_all_translations("🎨 Generate Image")))
 async def handle_generate_image_button(message: types.Message, state: FSMContext):
     await state.set_state(ImageState.waiting_for_prompt)
-    await message.answer("🎨 Please send me the prompt for the image you want to generate:")
+    from app.repositories.mongodb.user_repository import user_repository
+    user = await user_repository.get_by_telegram_id(message.from_user.id)
+    lang = user.language if user and user.language else "en"
+    await message.answer(t("🎨 Please send me the prompt for the image you want to generate:", lang))
 
-@dp.message(F.text == "🎵 Generate Audio")
+@dp.message(F.text.in_(get_all_translations("🎵 Generate Audio")))
 async def handle_generate_audio_button(message: types.Message, state: FSMContext):
     from app.core.config import settings as _s
     if not _s.tts_enabled:

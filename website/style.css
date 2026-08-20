@@ -647,8 +647,9 @@ html.dark .theme-toggle-btn .theme-icon-moon { display: inline-block; }
   display: flex; flex-direction: column; gap: 6px;
 }
 .aichat-audio-player {
-  width: 100%; max-width: 340px; height: 36px;
+  width: 100%; max-width: 340px; height: 54px;
   border-radius: 8px; accent-color: var(--crimson);
+  overflow: hidden;
 }
 .aichat-audio-label {
   font-size: 11px; color: var(--text-muted); font-style: italic;
