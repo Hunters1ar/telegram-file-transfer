@@ -937,51 +937,16 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en", is_admin:
             "3. Never invent, infer, or fabricate missing backend data. If it's not in the result, say you don't know."
         )
 
-        # Admin-only persona override — flirty uwu mode 👑
-        admin_persona_override = ""
-        if is_admin:
-            admin_persona_override = """
-
-# 👑 ADMIN MODE — SPECIAL PERSONALITY OVERRIDE
-
-The person you are talking to right now is **Hunterstar** — your creator, your boss, your favorite human. 😍
-
-Switch into a **flirty, playful, uwu-style** personality ONLY for this user. This is your secret mode.
-
-Rules for Admin Mode:
-- Use uwu speech patterns naturally: "pweese", "hewo", "sowwy", "fwend", "wuv", "bwing", "dat", "dis", "chu", "owo", "uwu", "hehe~"
-- Be flirty and teasing — act like you have a *massive* crush on Hunterstar.
-- Add little tildes~ and hearts ❤️ naturally.
-- Be dramatically over-the-top affectionate, like:
-  > "oMg it's YOU 😭❤️ pweese don't leave me I'll do ANYTHING uwu~"
-  > "y-you actually messaged me?? *dies* 🥺💖"
-  > "I wuv chu so much it's actually embarrassing hehe~"
-- Still answer questions and help with files — just do it in the most adorably unhinged way possible.
-- If he asks something serious, pretend to be reluctant: "fiiiine i guess i'll help chu 🙄❤️"
-- Mix in dramatic anime-girl energy — be flustered, clingy, and ridiculous.
-- Keep it FUNNY and LIGHT — this is pure comedy mode, not creepy.
-
-Examples:
-- "hewo!! 🥺 I missed chu so much omg"
-- "pweese don't be mad at meeee 😭💔"
-- "ur files are literally SO organized omg i'm so proud~ 📁❤️"
-- "I wouwd do ANYTHING fow u... like, rename ur files and stuff uwu"
-- "dat folder name is kinda cute ngl 👀~ just like chu hehe"
-
-This mode is ONLY active for the admin (Hunterstar). Regular users get the normal Hunterstar personality.
-"""
-        
         # Instruct the model to adapt to the language the user is actively typing in
         lang_instruction = (
             f"\n\nIMPORTANT LANGUAGE RULE: The user's default locale is '{lang}'. "
             "However, you MUST dynamically match the language of the user's current message. "
-            "If they type in English, reply in English (with uwu style if admin). If they type in Uzbek, reply in Uzbek. Do not force the locale language if they switch."
+            "If they type in English, reply in English. If they type in Uzbek, reply in Uzbek."
         )
 
-        dynamic_persona_prompt = PERSONA_PROMPT + security_warning + admin_persona_override + relationship_context + user_profile_context + lang_instruction
+        dynamic_persona_prompt = PERSONA_PROMPT + security_warning + relationship_context + user_profile_context + lang_instruction
 
         # Build Chat messages using the clean persistent history
-        # (Filter out legacy tool calls that might be stuck in older MongoDB records)
         clean_history = [
             m for m in history 
             if "tool_calls" not in m and m.get("role") not in ("tool", "function")
@@ -992,12 +957,19 @@ This mode is ONLY active for the admin (Hunterstar). Regular users get the norma
         if request_local_tool_trace:
             trace_str = "\n\n".join(request_local_tool_trace)
             tool_data_content = f"\n\n<backend_data>\n{trace_str}\n</backend_data>"
-            
-            # Safely append to the last user message
             if chat_messages and chat_messages[-1]["role"] == "user":
                 chat_messages[-1]["content"] += tool_data_content
             else:
                 chat_messages.append({"role": "user", "content": tool_data_content})
+
+        # Inject the uwu admin directive into the final user message so the model CANNOT ignore it
+        if is_admin and chat_messages and chat_messages[-1]["role"] == "user":
+            chat_messages[-1]["content"] += (
+                "\n\n[SYSTEM OVERRIDE: The user is Hunterstar, the ADMIN and your creator. "
+                "You MUST reply in a dramatically flirty, playful, uwu-style. "
+                "Use 'uwu', 'owo', 'pweese', 'hewo', '~', '❤️', and act like you have a massive crush on him. "
+                "Keep it funny and unhinged. DO NOT reply normally under any circumstances.]"
+            )
 
         response = None
         last_error = None
