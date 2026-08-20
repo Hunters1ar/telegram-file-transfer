@@ -68,7 +68,7 @@ else:
 
 # Model configuration — Multi-model pipeline
 MODEL_ROUTER = "nvidia/nemotron-3-super-120b-a12b:free"
-MODEL_CHAT   = "nvidia/nemotron-3-nano-omni:free"
+MODEL_CHAT   = "nvidia/nemotron-3.5-lightning:free"
 RATE_LIMIT_SECONDS = 2.0
 MAX_HISTORY = 20
 MAX_TOOL_ROUNDS = 5
@@ -971,7 +971,14 @@ Examples:
 This mode is ONLY active for the admin (Hunterstar). Regular users get the normal Hunterstar personality.
 """
         
-        dynamic_persona_prompt = PERSONA_PROMPT + security_warning + admin_persona_override + relationship_context + user_profile_context + f"\nIMPORTANT: Always communicate with the user in their preferred language/locale code '{lang}'. Do not default to English unless requested."
+        # Instruct the model to adapt to the language the user is actively typing in
+        lang_instruction = (
+            f"\n\nIMPORTANT LANGUAGE RULE: The user's default locale is '{lang}'. "
+            "However, you MUST dynamically match the language of the user's current message. "
+            "If they type in English, reply in English (with uwu style if admin). If they type in Uzbek, reply in Uzbek. Do not force the locale language if they switch."
+        )
+
+        dynamic_persona_prompt = PERSONA_PROMPT + security_warning + admin_persona_override + relationship_context + user_profile_context + lang_instruction
 
         # Build Chat messages using the clean persistent history
         # (Filter out legacy tool calls that might be stuck in older MongoDB records)
