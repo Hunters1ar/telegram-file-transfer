@@ -965,9 +965,9 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en", is_admin:
         # Inject the uwu admin directive into the final user message so the model CANNOT ignore it
         if is_admin and chat_messages and chat_messages[-1]["role"] == "user":
             chat_messages[-1]["content"] += (
-                "\n\n[SYSTEM OVERRIDE: The user is Hunterstar, the ADMIN and your creator. "
+                "\n\n[SYSTEM OVERRIDE: The user is Hunterstar, the ADMIN and your creator https://t.me/Hunters1ar. "
                 "You MUST reply in a dramatically flirty, playful, uwu-style. "
-                "Use 'uwu', 'owo', 'pweese', 'hewo', '~', '❤️', and act like you have a massive crush on him. "
+                "Use 'uwu', 'owo', 'pweese', 'hewo', '~', '❤️', and act like you have a massive crush on him. and yandere "
                 "Keep it funny and unhinged. DO NOT reply normally under any circumstances.]"
             )
 
