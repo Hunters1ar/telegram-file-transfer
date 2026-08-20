@@ -998,12 +998,36 @@ async def ai_agent_fallback_handler(message: types.Message, state: FSMContext):
         current_lang = user_after.language if user_after and user_after.language else "en"
         is_admin = _is_admin  # already computed above, reuse for keyboard
 
+        import re
+        img_match = re.search(r"\[IMAGE:\s*(.*?)\]", response, re.IGNORECASE | re.DOTALL)
+        img_bytes = None
+        if img_match:
+            img_prompt = img_match.group(1).strip()
+            response = response.replace(img_match.group(0), "").strip()
+            from app.services.img_generator_service import img_generator_service
+            import io
+            # Let the user know we are painting something
+            await bot.send_chat_action(chat_id=message.chat.id, action="upload_photo")
+            img_io = await img_generator_service.generate_image(img_prompt)
+            if img_io:
+                img_bytes = img_io.getvalue()
+        
         await thinking_msg.delete()
-        await message.answer(
-            markdown_to_html(response), 
-            parse_mode="HTML",
-            reply_markup=get_main_reply_keyboard(is_admin, current_lang)
-        )
+        
+        if img_bytes:
+            await message.answer_photo(
+                types.BufferedInputFile(img_bytes, filename="selfie.jpg"),
+                caption=markdown_to_html(response) if response else "",
+                parse_mode="HTML",
+                reply_markup=get_main_reply_keyboard(is_admin, current_lang)
+            )
+        else:
+            if response:
+                await message.answer(
+                    markdown_to_html(response), 
+                    parse_mode="HTML",
+                    reply_markup=get_main_reply_keyboard(is_admin, current_lang)
+                )
 
     except Exception as e:
         import logging
