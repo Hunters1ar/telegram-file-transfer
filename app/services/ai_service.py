@@ -67,8 +67,8 @@ else:
     logger.warning("No Gemini API keys configured. Gemini fallback unavailable.")
 
 # Model configuration — Multi-model pipeline
-MODEL_ROUTER = "nvidia/nemotron-3.5-lightning:free"
-MODEL_CHAT   = "nvidia/nemotron-3.5-lightning:free"
+MODEL_ROUTER = "nvidia/nemotron-3-nano-omni:free"
+MODEL_CHAT   = "nvidia/nemotron-3-nano-omni:free"
 RATE_LIMIT_SECONDS = 2.0
 MAX_HISTORY = 20
 MAX_TOOL_ROUNDS = 5
