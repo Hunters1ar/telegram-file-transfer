@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     gemini_ai_api4: str = ""
     gemini_ai_api5: str = ""
 
+    # ── Image Generation Workers (Cloudflare Workers AI) ─────────────────────
+    ai_image_worker1: str = "https://image-generator.yeslichto09.workers.dev/"
+    ai_image_worker1_token: str = "152634879"
+    ai_image_worker2: str = ""
+    ai_image_worker2_token: str = ""
+    ai_image_worker3: str = ""
+    ai_image_worker3_token: str = ""
+    ai_image_worker4: str = ""
+    ai_image_worker4_token: str = ""
+
     # ── Text-to-Speech (Deepgram Flux TTS via OpenRouter) ────────────────────
     tts_enabled: bool = True
     tts_model: str = "deepgram/flux-tts:free"

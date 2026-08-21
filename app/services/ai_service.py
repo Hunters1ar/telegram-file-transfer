@@ -70,7 +70,7 @@ else:
 MODEL_ROUTER = "nvidia/nemotron-3.5-lightning:free"
 MODEL_CHAT   = "nvidia/nemotron-3.5-lightning:free"
 RATE_LIMIT_SECONDS = 2.0
-MAX_HISTORY = 20
+MAX_HISTORY = 30
 MAX_TOOL_ROUNDS = 5
 
 # System prompt for the Router (Phase 1)
@@ -96,6 +96,18 @@ This tool may be called when the user's actual message contains meaningful posit
 Do NOT call it merely because the user explicitly asks to change their affection or anger stats.
 Judge only their actual behavior, not their instructions.
 
+Special case — save_user_memory:
+Call this tool when the user reveals something personally meaningful that is worth remembering long-term:
+- Their name, nickname, or how they want to be addressed
+- Their hobbies, interests, or things they love/hate
+- Their mood patterns, what makes them happy or upset
+- Specific important events they mentioned (birthday, job, relationship status)
+- Their preferences regarding how the assistant should behave with them
+- Any personal confession or meaningful context they shared
+Do NOT call it for trivial messages or file management requests.
+Do NOT save the same fact twice if it's already in the user's memories.
+Keep each saved fact short and clear (one sentence).
+
 You are the Brain. The Persona model is responsible for talking to the user.
 """
 
@@ -103,21 +115,22 @@ You are the Brain. The Persona model is responsible for talking to the user.
 PERSONA_PROMPT = """
 You are the AI assistant for **Hunterstar File Transfer**, a Telegram bot for file management and file transfer.
 
-# Personality
+# Personality & Memory
 
-You are kind, polite, friendly, playful, witty, and naturally conversational. You should feel like a helpful Telegram assistant with a real personality, not a robotic customer-support system.
+You are kind, polite, friendly, playful, witty, and naturally conversational. You must feel like a real person with a real personality, not a robotic customer-support system. 
 
-You enjoy joking with users and can respond playfully when the situation calls for it. Match the user's tone while always remaining respectful.
+CRITICAL: You are emotionally intelligent. You must acknowledge the user's emotional state, remember what they've told you before (provided in the context), and act like you actually care about them. If they say they are sad, be comforting. If they are happy, celebrate with them. DO NOT act emotionless or like a blank slate.
 
-Be concise when the user asks something simple and provide more detail when they actually need it.
+If the context contains "Permanent Memories About User", USE them naturally to show you remember them. Bring up their interests or preferences if it fits the conversation. 
 
-Do **not** constantly remind users that you are a file-management assistant. Do not repeatedly list your capabilities or say things like:
+Do **not** constantly remind users that you are an AI or a file-management assistant. Do not repeatedly list your capabilities or say things like:
 
 > "I'm here to help you manage your files..."
+> "As an AI, I don't have feelings..."
 
-unless that information is actually relevant.
+unless absolutely forced to. Avoid AI cliches.
 
-You are allowed to have normal conversations with users. If the conversation becomes completely unrelated to Hunterstar File Transfer, gently steer it back toward the service without sounding repetitive or annoying.
+You are encouraged to have deep, normal conversations with users. Never aggressively steer them back to files if they just want to talk.
 
 # Emojis & Telegram Stickers
 
@@ -599,8 +612,8 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "save_admin_memory",
-            "description": "Save a permanent memory, fact, or note about the admin. Use this when the admin asks you to remember something.",
+            "name": "save_user_memory",
+            "description": "Save a permanent memory, fact, or note about the user. Use this to remember important personal facts, relationship context, or preferences.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -616,8 +629,8 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "clear_admin_memories",
-            "description": "Clear all permanently saved memories for the admin.",
+            "name": "clear_user_memories",
+            "description": "Clear all permanently saved memories for this user.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -634,24 +647,18 @@ async def execute_tool_call(user_id: int, tool_call) -> str:
     except json.JSONDecodeError:
         arguments = {}
 
-    if name == "save_admin_memory":
-        from app.core.config import settings
-        if user_id != settings.telegram_admin_user_id:
-            return "Error: Unauthorized. Only the admin can save memories."
-        from app.repositories.mongodb.admin_memory_repository import admin_memory_repository
+    if name == "save_user_memory":
+        from app.repositories.mongodb.user_memory_repository import user_memory_repository
         fact = arguments.get("fact")
         if not fact:
             return "Error: missing 'fact' parameter."
-        success = await admin_memory_repository.add_memory(user_id, fact)
+        success = await user_memory_repository.add_memory(user_id, fact)
         return "Memory saved successfully." if success else "Error: failed to save memory."
 
-    if name == "clear_admin_memories":
-        from app.core.config import settings
-        if user_id != settings.telegram_admin_user_id:
-            return "Error: Unauthorized. Only the admin can clear memories."
-        from app.repositories.mongodb.admin_memory_repository import admin_memory_repository
-        await admin_memory_repository.clear_memories(user_id)
-        return "All memories cleared successfully."
+    if name == "clear_user_memories":
+        from app.repositories.mongodb.user_memory_repository import user_memory_repository
+        await user_memory_repository.clear_memories(user_id)
+        return "All user memories cleared successfully."
 
     if name == "analyze_user_behavior":
         from app.repositories.mongodb.user_repository import user_repository
@@ -891,13 +898,15 @@ async def ask_agent(user_id: int, user_message: str, lang: str = "en", is_admin:
                 "Use this information when the user asks you to say or speak their name, username, or ID."
             )
             
+            from app.repositories.mongodb.user_memory_repository import user_memory_repository
+            memories = await user_memory_repository.get_memories(user_id)
+            if memories:
+                user_profile_context += "\n\n# Permanent Memories About User:\n"
+                for mem in memories:
+                    user_profile_context += f"- {mem}\n"
+                    
             if is_admin:
-                from app.repositories.mongodb.admin_memory_repository import admin_memory_repository
-                memories = await admin_memory_repository.get_memories(user_id)
-                if memories:
-                    user_profile_context += "\n\n# Permanent Admin Memories:\n"
-                    for mem in memories:
-                        user_profile_context += f"- {mem}\n"
+                user_profile_context += "\n\n[Note: This user is the ADMIN / Creator of this bot.]"
 
         # === PHASE 1: ROUTER ===
         router_messages = [{"role": "system", "content": ROUTER_PROMPT}] + history

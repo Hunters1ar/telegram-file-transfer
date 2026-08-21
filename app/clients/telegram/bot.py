@@ -68,7 +68,20 @@ async def command_language_handler(message: types.Message) -> None:
 
 @dp.message(Command("image"))
 async def command_image_handler(message: types.Message, state: FSMContext):
-    prompt = message.text.replace("/image", "").strip()
+    # Handle both text and caption
+    text = message.text or message.caption or ""
+    prompt = text.replace("/image", "").strip()
+    
+    # Check if there is an image in the current message or a replied-to message
+    photo = None
+    if message.photo:
+        photo = message.photo[-1] # Highest resolution
+    elif message.reply_to_message and message.reply_to_message.photo:
+        photo = message.reply_to_message.photo[-1]
+
+    if photo:
+        await state.update_data(photo_file_id=photo.file_id)
+
     if not prompt:
         await state.set_state(ImageState.waiting_for_prompt)
         from app.repositories.mongodb.user_repository import user_repository
@@ -80,16 +93,36 @@ async def command_image_handler(message: types.Message, state: FSMContext):
 
 @dp.message(ImageState.waiting_for_prompt)
 async def process_image_prompt_state(message: types.Message, state: FSMContext):
-    if not message.text:
+    text = message.text or message.caption or ""
+    if not text:
         return await message.answer("Please send a text prompt.")
     
-    await process_image_generation(message, message.text, state)
+    # If they attach a photo now, save it
+    if message.photo:
+        await state.update_data(photo_file_id=message.photo[-1].file_id)
+
+    await process_image_generation(message, text, state)
 
 async def process_image_generation(message: types.Message, prompt: str, state: FSMContext):
     msg = await message.answer("🎨 Generating image, please wait...")
     
+    state_data = await state.get_data()
+    photo_file_id = state_data.get("photo_file_id")
+    image_b64 = None
+
+    if photo_file_id:
+        try:
+            import base64
+            # Download the photo from Telegram
+            file = await message.bot.get_file(photo_file_id)
+            result = await message.bot.download_file(file.file_path)
+            image_b64 = base64.b64encode(result.read()).decode('utf-8')
+        except Exception as e:
+            logging.error(f"Failed to process image for img2img: {e}")
+            await message.answer("⚠️ Failed to process the attached image, proceeding with text-to-image only.")
+
     from app.services.img_generator_service import img_generator_service
-    image_stream = await img_generator_service.generate_image(prompt)
+    image_stream = await img_generator_service.generate_image(prompt, image_b64)
     
     if image_stream:
         from aiogram.types import BufferedInputFile
@@ -1098,9 +1131,26 @@ async def ai_agent_fallback_handler(message: types.Message, state: FSMContext):
             response = response.replace(img_match.group(0), "").strip()
             from app.services.img_generator_service import img_generator_service
             import io
+            import os
             # Let the user know we are painting something
             await bot.send_chat_action(chat_id=message.chat.id, action="upload_photo")
-            img_io = await img_generator_service.generate_image(img_prompt)
+            
+            # Read the base64 "ai look" to maintain character consistency
+            ai_look_b64 = None
+            try:
+                look_path = os.path.join(os.path.dirname(__file__), "..", "..", "services", "ai look")
+                if os.path.exists(look_path):
+                    with open(look_path, "r") as f:
+                        content = f.read().strip()
+                        # Remove the data URL prefix if present, as APIs usually want raw base64
+                        if "," in content:
+                            ai_look_b64 = content.split(",")[1]
+                        else:
+                            ai_look_b64 = content
+            except Exception as e:
+                logging.error(f"Failed to read 'ai look' file: {e}")
+
+            img_io = await img_generator_service.generate_image(img_prompt, image_b64=ai_look_b64)
             if img_io:
                 img_bytes = img_io.getvalue()
         
