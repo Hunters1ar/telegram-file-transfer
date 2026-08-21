@@ -57,9 +57,12 @@ class ImageGeneratorService:
             payload["image_b64"] = image_b64
 
         for url, token in ordered:
-            result = await self._call_worker(url, token, payload)
-            if result:
-                return result
+            try:
+                result = await self._call_worker(url, token, payload)
+                if result:
+                    return result
+            except Exception as e:
+                logging.warning(f"Worker {url} threw an exception: {e}")
             logging.warning(f"Worker {url} failed, trying next...")
 
         logging.error("All image workers failed.")
