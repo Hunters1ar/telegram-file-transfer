@@ -38,9 +38,9 @@ class ImageGeneratorService:
             logging.error(f"Worker {url} error: {e}")
             return None
 
-    async def generate_image(self, prompt: str, image_b64: str = None) -> io.BytesIO | None:
+    async def generate_image(self, prompt: str) -> io.BytesIO | None:
         """
-        Generate an image from a text prompt. If image_b64 is provided, it performs img2img.
+        Generate an image from a text prompt.
         Rotates between workers in round-robin order; falls back to the other if one fails.
         """
         workers = self._get_workers()
@@ -51,18 +51,11 @@ class ImageGeneratorService:
         # Round-robin pick, then fall back to remaining workers
         start_idx = next(self._counter) % len(workers)
         ordered = workers[start_idx:] + workers[:start_idx]
-        
-        payload = {"prompt": prompt}
-        if image_b64:
-            payload["image_b64"] = image_b64
 
         for url, token in ordered:
-            try:
-                result = await self._call_worker(url, token, payload)
-                if result:
-                    return result
-            except Exception as e:
-                logging.warning(f"Worker {url} threw an exception: {e}")
+            result = await self._call_worker(url, token, {"prompt": prompt})
+            if result:
+                return result
             logging.warning(f"Worker {url} failed, trying next...")
 
         logging.error("All image workers failed.")
