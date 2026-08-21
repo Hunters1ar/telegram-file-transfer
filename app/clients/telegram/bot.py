@@ -158,7 +158,7 @@ async def send_welcome_message(chat_id: int, lang: str):
     )
     
     await bot.send_message(chat_id, welcome_text, parse_mode="HTML")
-    await bot.send_message(chat_id, t("Menu updated 👇", lang), reply_markup=get_main_reply_keyboard(is_admin, lang))
+    await bot.send_message(chat_id, t("Enjoy!", lang), reply_markup=get_main_reply_keyboard(is_admin, lang))
 
 from app.clients.telegram.keyboards import LanguageAction
 @dp.callback_query(LanguageAction.filter())
@@ -175,17 +175,109 @@ async def handle_language_selection(callback_query: types.CallbackQuery, callbac
 @dp.message(Command("admin"))
 @dp.message(F.text.in_(get_all_translations("👑 Admin Menu")))
 async def handle_admin_menu(message: types.Message):
+    """Swap the bottom reply keyboard to the admin panel keyboard."""
     if message.from_user.id != settings.admin:
         return
-    
+
+    from app.repositories.mongodb.user_repository import user_repository
+    from app.clients.telegram.keyboards import get_admin_reply_keyboard
+    user = await user_repository.get_by_telegram_id(message.from_user.id)
+    lang = user.language if user and user.language else "en"
+
+    await message.answer(
+        t("👑 <b>Admin Panel</b>\n\nChoose an action below:", lang),
+        parse_mode="HTML",
+        reply_markup=get_admin_reply_keyboard(lang=lang),
+    )
+
+
+@dp.message(F.text.in_(get_all_translations("🔙 Back")))
+async def handle_admin_back(message: types.Message):
+    """Return from the admin keyboard back to the main reply keyboard."""
+    from app.repositories.mongodb.user_repository import user_repository
+    from app.clients.telegram.keyboards import get_main_reply_keyboard
+    user = await user_repository.get_by_telegram_id(message.from_user.id)
+    lang = user.language if user and user.language else "en"
+
+    await message.answer(
+        t("Main menu 👇", lang),
+        reply_markup=get_main_reply_keyboard(is_admin=True, lang=lang),
+    )
+
+
+@dp.message(F.text.in_(get_all_translations("👥 Users")))
+async def handle_admin_users_btn(message: types.Message):
+    """Show a list of all registered users."""
+    if message.from_user.id != settings.admin:
+        return
+
+    from app.repositories.mongodb.user_repository import user_repository
+    users = await user_repository.get_all_users()
+
+    text = f"👥 <b>Total Users: {len(users)}</b>\n\n"
+    for idx, u in enumerate(users[:100]):
+        name = f"{u.first_name or ''} {u.last_name or ''}".strip()
+        uname = f"@{u.username}" if u.username else "No Username"
+        text += f"{idx+1}. <b>{name}</b> ({uname}) – ID: <code>{u.telegram_id}</code>\n"
+
+    if len(users) > 100:
+        text += f"\n… and {len(users) - 100} more."
+
+    for chunk in range(0, len(text), 4000):
+        await message.answer(text[chunk:chunk + 4000], parse_mode="HTML")
+
+
+@dp.message(F.text.in_(get_all_translations("📈 Stats")))
+async def handle_admin_stats_btn(message: types.Message):
+    """Show system-wide storage stats."""
+    if message.from_user.id != settings.admin:
+        return
+
+    from app.repositories.mongodb.user_repository import user_repository
+    from app.repositories.mongodb.file_repository import file_repository as _fr
+    total_users = len(await user_repository.get_all_users())
+    all_stats = await _fr.get_global_stats() if hasattr(_fr, "get_global_stats") else {}
+    total_files = all_stats.get("total_files", "N/A")
+    total_size_mb = all_stats.get("total_size", 0) / (1024 * 1024) if all_stats.get("total_size") else 0
+
+    await message.answer(
+        f"📈 <b>System Stats</b>\n\n"
+        f"👥 Users: <b>{total_users}</b>\n"
+        f"📁 Files: <b>{total_files}</b>\n"
+        f"☁ Storage: <b>{total_size_mb:.2f} MB</b>",
+        parse_mode="HTML",
+    )
+
+
+@dp.message(F.text.in_(get_all_translations("📢 Broadcast")))
+async def handle_admin_broadcast_btn(message: types.Message):
+    """Placeholder — broadcast is not yet implemented."""
+    if message.from_user.id != settings.admin:
+        return
+    await message.answer(
+        "📢 <b>Broadcast</b>\n\nThis feature is coming soon!\n"
+        "Use <code>/broadcast &lt;message&gt;</code> once available.",
+        parse_mode="HTML",
+    )
+
+
+@dp.message(F.text.in_(get_all_translations("🛠 Maintenance")))
+async def handle_admin_maintenance_btn(message: types.Message):
+    """Show maintenance options as an inline keyboard."""
+    if message.from_user.id != settings.admin:
+        return
+
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
-    builder.button(text="👥 View Users", callback_data="admin_users")
     builder.button(text="⚙ Set File Limit", callback_data="admin_setlimit")
     builder.button(text="🧹 Clear Whole System", callback_data="admin_clearwhole")
     builder.adjust(1)
-    
-    await message.answer("<b>Admin Command Palette</b>", parse_mode="HTML", reply_markup=builder.as_markup())
+
+    await message.answer(
+        "🛠 <b>Maintenance</b>",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+    )
 
 @dp.callback_query(F.data == "admin_users")
 async def handle_admin_users_cb(callback: types.CallbackQuery):
