@@ -35,6 +35,11 @@ class UserRepository:
                     "show_others_files": True,
                     "affection": 0,
                     "anger": 0,
+                    "trust": 0,
+                    "closeness": 0,
+                    "embarrassment": 0,
+                    "jealousy": 0,
+                    "pride": 50,
                     "created_at": user.created_at,
                 }
             },
@@ -80,30 +85,30 @@ class UserRepository:
         if telegram_id in self._cache:
             self._cache[telegram_id].language = language
 
-    async def update_user_stats(self, telegram_id: int, affection_delta: int, anger_delta: int) -> User | None:
+    async def update_user_stats(self, telegram_id: int, deltas: dict) -> User | None:
         user = await self.get_by_telegram_id(telegram_id)
         if not user:
             return None
-        
-        # Calculate new clamped values
-        new_affection = max(0, min(100, user.affection + affection_delta))
-        new_anger = max(0, min(100, user.anger + anger_delta))
         
         update_fields = {}
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
         
-        if new_affection != user.affection:
-            update_fields["affection"] = new_affection
-            update_fields["last_affection_update"] = now
-            user.affection = new_affection
-            user.last_affection_update = now
-            
-        if new_anger != user.anger:
-            update_fields["anger"] = new_anger
-            update_fields["last_anger_update"] = now
-            user.anger = new_anger
-            user.last_anger_update = now
+        stat_keys = ["affection", "anger", "trust", "closeness", "embarrassment", "jealousy", "pride"]
+        for stat in stat_keys:
+            if stat in deltas:
+                delta = deltas[stat]
+                current = getattr(user, stat, 0)
+                if current is None:
+                    current = 50 if stat == "pride" else 0
+                    
+                new_val = max(0, min(100, current + delta))
+                if new_val != current:
+                    update_fields[stat] = new_val
+                    setattr(user, stat, new_val)
+                    if stat in ["affection", "anger"]:
+                        update_fields[f"last_{stat}_update"] = now
+                        setattr(user, f"last_{stat}_update", now)
             
         if update_fields:
             await self.collection.update_one(

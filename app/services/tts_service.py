@@ -282,7 +282,7 @@ class TTSService:
 
         # Route to Fish Audio if non-English language requested or non-Latin script detected
         if lang not in ("en", "") or has_cyrillic or has_cjk or has_hangul:
-            target_model = "fishaudio/fish-speech-1.5"
+            target_model = "fish-audio/s2.1-pro-free:free"
             target_voice = None # Fish Audio is auto-multilingual
 
         payload = {
