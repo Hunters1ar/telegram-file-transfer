@@ -588,14 +588,14 @@ function renderAnalytics() {
   const privateCount = totalFiles - publicCount;
   const favCount = visible.filter(f => isFavorite(f.id)).length;
   const totalBytes = visible.reduce((sum, f) => sum + parseSizeToBytes(f), 0);
-  const limit = 100 * 1024 * 1024 * 1024;
+  const limit = globalLimitBytes || (100 * 1024 * 1024 * 1024);
 
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   set('an-files', totalFiles);
   set('an-public', publicCount);
   set('an-favorites', favCount);
   set('an-storage-used', formatBytes(totalBytes));
-  set('an-storage-sub', `of 100 GB`);
+  set('an-storage-sub', `of ${formatBytes(limit)}`);
   const fill = document.getElementById('an-storage-fill');
   if (fill) fill.style.width = `${Math.min((totalBytes / limit) * 100, 100)}%`;
 
@@ -840,12 +840,12 @@ async function fetchStats() {
         globalLimitBytes = stats.limit_mb * 1024 * 1024;
     }
     
-    const limit = 100 * 1024 * 1024 * 1024; 
+    const limit = globalLimitBytes || (100 * 1024 * 1024 * 1024);
     const percent = Math.min((stats.total_size / limit) * 100, 100);
     const textEl = document.getElementById('sb-storage-text');
     const fillEl = document.getElementById('sb-storage-fill');
     
-    if (textEl) textEl.textContent = `${formatBytes(stats.total_size)} / 100 GB`;
+    if (textEl) textEl.textContent = `${formatBytes(stats.total_size)} / ${formatBytes(limit)}`;
     if (fillEl) fillEl.style.width = `${percent}%`;
     
   } catch (e) {
